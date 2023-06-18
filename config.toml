@@ -5,10 +5,10 @@ title = "Portfolio website for Nianyu Li"
 theme = "forty"
 
 # Enter your tracking code to enable Google Analytics
-googleAnalytics = ""
+googleAnalytics = "G-8QYK20C469"
 
 # Enter your disqus shortname to enable comments
-disqusShortname = ""
+disqusShortname = "nianyuli"
 
 [params]
   # You can use Markdown syntax for urls [text](//url.to/source)
@@ -28,7 +28,7 @@ disqusShortname = ""
   favicon    = "favicon.ico"
 
   # Just a custom image variable, please define it in .md files for content.
-  image = ""
+  image = "spices.jpg"
 
   # 404 error customization
   [params.error404]
@@ -92,40 +92,40 @@ disqusShortname = ""
     # Display your showcases here.
     
     [[params.tiles.showcase]]
-      title = "Aliquam"
-      subtitle = "Ipsum Dolor Sit Amet"
-      image = "pic01.jpg"
-      url = "blogs/aliquam"
+      title = "Risk_return Analysis"
+      subtitle = "Data Analytics using R"
+      image = "lbs.jpg"
+      url = "blogs/risk_return"
 
     [[params.tiles.showcase]]
-      title = "Tempus"
-      subtitle = "Feugiat Amet Tempus"
-      image = "pic02.jpg"
-      url = "blogs/tempus"
+      title = "Transform ASOS"
+      subtitle = "LBS X BCG Transformation Case Competition"
+      image = "asos1.jpg"
+      url = "blogs/asos.pdf"
 
     [[params.tiles.showcase]]
-      title = "Magna"
-      subtitle = "Lorem Etiam Nullam"
-      image = "pic03.jpg"
-      url = "blogs/magna"
+      title = "Archvale Patient Analysis"
+      subtitle = "Identification of Inappropriate GP usage based on 1657 patients"
+      image = "archvale.jpg"
+      url = "blogs/archvale"
 
     [[params.tiles.showcase]]
-      title = "Ipsum"
-      subtitle = "Nisl Sed Aliquam"
-      image = "pic04.jpg"
-      url = "blogs/ipsum"
+      title = "Energy Source in China from 1990 to 2022"
+      subtitle = "Stacked Area Chart based on OWID data"
+      image = "energy.jpeg"
+      url = "blogs/energy"
 
     [[params.tiles.showcase]]
-      title = "Consequat"
-      subtitle = "Ipsum Dolor Sit Amet"
-      image = "pic05.jpg"
-      url = "blogs/ipsum"
+      title = "Patterns in Massive Shootings"
+      subtitle = "Visuals created based on mass shootings in the US since 1982"
+      image = "shootings.jpg"
+      url = "blogs/shooting"
 
     [[params.tiles.showcase]]
-      title = "Etiam"
-      subtitle = "Feugiat Amet Tempus"
-      image = "pic06.jpg"
-      url = "blogs/ipsum"
+      title = "Female representation in Movies"
+      subtitle = "Data Modelling created based on Bechdel Test"
+      image = "movie.jpg"
+      url = "blogs/movie"
     # You can make more showcases by copy and pasting the code above
 
   [params.blog]
@@ -136,16 +136,16 @@ disqusShortname = ""
     # To add more blogs just copy and paste the code.
 
   # Section Type Two
-  [params.two]
-    enable = true
-    title = "Massa libero"
-    subtitle = """Nullam et orci eu lorem consequat tincidunt vivamus et sagittis libero. 
-    Mauris aliquet magna magna sed nunc rhoncus pharetra. 
-    Pellentesque condimentum sem. In efficitur ligula tate urna. Maecenas laoreet massa vel lacinia pellentesque lorem ipsum dolor. 
-    Nullam et orci eu lorem consequat tincidunt. Vivamus et sagittis libero.
-    Mauris aliquet magna magna sed nunc rhoncus amet pharetra et feugiat tempus."""
-    buttonText = "Get Started"
-    url = "blogs"
+  #[params.two]
+    #enable = true
+    #title = "Massa libero"
+    #subtitle = """Nullam et orci eu lorem consequat tincidunt vivamus et sagittis libero. 
+    #Mauris aliquet magna magna sed nunc rhoncus pharetra. 
+    #Pellentesque condimentum sem. In efficitur ligula tate urna. Maecenas laoreet massa vel lacinia pellentesque lorem ipsum dolor. 
+   # Nullam et orci eu lorem consequat tincidunt. Vivamus et sagittis libero.
+    #Mauris aliquet magna magna sed nunc rhoncus amet pharetra et feugiat tempus."""
+    #buttonText = "Get Started"
+    #url = "blogs"
 
 
   # Contact section
@@ -187,7 +187,7 @@ disqusShortname = ""
   # Footer section
   [params.footer]
     enable = true
-    copyright = "@Nianyu"
+    copyright = "Nianyu Li"
 
     # Uses font awesome icons
     #[[params.footer.social]]

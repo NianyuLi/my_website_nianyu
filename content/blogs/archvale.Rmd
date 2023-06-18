@@ -1,0 +1,591 @@
+---
+title: "Archvale Data Analysis"
+author: "Nianyu Li"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+  pdf_document:
+    toc: yes
+  word_document:
+    toc: yes
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: load-libraries
+#| echo: false # This option disables the printing of code (only output is displayed).
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(ggplot2)
+library(skimr)
+library(here)
+library(lubridate)
+library(janitor)
+library(openxlsx)
+library(waterfalls)
+library(GGally)
+```
+
+# Loading the data
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+patient <- read_csv(here::here("data", "patientRecord.csv")) %>% 
+  clean_names()
+glimpse(patient)
+
+appointment <- read_csv(here::here("data", "appointmentRecord.csv")) %>% 
+  clean_names()
+glimpse(appointment)
+
+chronicDisease <- read_csv(here::here("data", "chronicDiseaseRecord.csv")) %>% 
+  clean_names()
+glimpse(chronicDisease)
+```
+
+# Data Preparation
+
+## Frequencies
+
+Sum the number of consultations of each patients and join the table with
+`patient` table.
+
+```{r}
+#Count visit times of each patients
+visit_n <- 
+  appointment %>% 
+  group_by(patient_id) %>%
+  summarise(visit_n = n())
+
+#Join the table with patients record
+patients_n_visits <- 
+  left_join(x = patient,
+            y = visit_n,
+            by = "patient_id") %>% 
+  
+  #change NA to 0 for the patients who have never visited GP
+  mutate(visit_n = replace_na(visit_n,0)) %>% 
+  
+  arrange(desc(visit_n)) %>% 
+  
+  print()
+```
+
+## Age
+
+The age of the patient might affect their behaviour. As the time frame
+of the appoint record is not that long (only includes record of
+2022-2023), we could assume the patient's age is this year minus the
+year of their birthday, though not 100% accurate.
+
+```{r}
+patients_n_visits_1 <-  patients_n_visits %>% 
+  
+  #convert character to date
+  mutate(date_of_birth = dmy(date_of_birth)) %>% 
+  
+  #calculate age
+  mutate(age = year(today()) - year(date_of_birth)) %>% 
+  
+  print()
+```
+
+```{r}
+#Assign patients to "Early_childhood(<8) and elderly(>65)" and "Others"
+
+#Create a new variable to label patients
+patients_n_visits_1 <-patients_n_visits_1 %>% 
+  mutate(age_group = case_when(age %in% (8:65) ~ "Others",
+                               !age %in% (8:65) ~ "Under 8 or above 65")) %>% 
+  print()
+```
+
+## Registration Cohort
+
+Patients who registered after March 2023 might have a different
+behaviour due to the implementation of a marketing campign. Create a new
+variable to show the registration cohort of the patients: people who
+registered before March 2023 are classified as in the `Old` cohort,
+whereas after March 2023 belongs to `New` cohort.
+
+```{r}
+patients_n_visits_2 <-  patients_n_visits_1 %>% 
+  
+  #convert character to date
+  mutate(registration_date = dmy(registration_date)) %>%
+  
+  #create a new variable to show their registration cohort
+  mutate(cohort = case_when(registration_date > "2023-03-01" ~ "New",
+                            registration_date < "2023-03-01" ~ "Old")) %>% 
+  
+  print()
+```
+
+## Chronic Disease
+
+Patients with chronic diseases visits GP regularly. Create a new
+variable called chronic_disease to show the number of disease the
+patient have.
+
+```{r}
+#convert the data to long format
+chronicDisease_1 <- chronicDisease %>% 
+  pivot_longer(cols = -"patient_id",
+               names_to = "disease",
+               values_to = "yn") %>%
+  
+  group_by(patient_id) %>% 
+  summarise(n_disease = sum(yn)) 
+
+patients_n_visits_3 <-
+  
+  #Join the chronic disease table with patients table
+  left_join(x = patients_n_visits_2,
+            y = chronicDisease_1,
+            by = "patient_id") %>% 
+  
+  #convert NA to 0
+  mutate(n_disease = replace_na(n_disease,0)) %>% 
+  
+  #label patients as have(Yes) and do not have(No) chronic disease
+  mutate(chronic_disease = case_when(n_disease > 0 ~ "Yes",
+                                     n_disease == 0 ~ "No")) %>% 
+  
+  print()
+```
+
+## Average appointment time
+
+```{r}
+#| warning: false
+
+#Calculate the average appointment time for patients
+app_time <- appointment %>% 
+  group_by(patient_id) %>% 
+  summarise(avg_time = mean(as.integer(planned_appointment_duration)))
+
+#join it with the patients table
+patients_n_visits_4 <- left_join(x = patients_n_visits_3,
+                                 y = app_time,
+                                 by = "patient_id") %>% 
+  
+  #convert NA to 0
+  mutate(avg_time = replace_na(avg_time,0)) %>% 
+  
+  print()
+```
+
+## Average appointment intervals
+
+```{r}
+app_interval <- appointment %>% 
+  
+  #convert character to date
+  mutate(appointment_date = dmy(appointment_date)) %>%
+  
+  #group by patients
+  group_by(patient_id) %>% 
+  
+  #calculate average interval
+  summarise(app_interval_sum = max(appointment_date) - min(appointment_date),
+            visit_n = n()) %>% 
+  
+  mutate(app_interval = app_interval_sum/visit_n,
+         app_interval_int = as.numeric(app_interval)) %>% 
+  
+  #arrange the data
+  arrange(desc(app_interval)) %>%
+  
+  select(patient_id, app_interval_int)
+  
+  #Join it with patients table and omit NAs
+patients_n_visits_5 <- left_join(x = patients_n_visits_4,
+                                 y = app_interval,
+                                 by = "patient_id") %>% 
+  
+  #convert NA to 0
+  mutate(app_interval_int = replace_na(app_interval_int,0)) %>% 
+  
+  print()
+```
+
+# Data Analysis
+
+We make the following assumptions to identify the inappropriate users of
+GP services:
+
+1)  They are frequent users of GP services.
+
+2)  They are associate with potential inappropriate usage - assumptions
+    about inappropriate usage.
+
+## Identify Frequent Patients
+
+Calculate the patient's GP frequencies to identify the frequent
+patients.
+
+```{r}
+patients_frequency <- patients_n_visits_5 %>%
+  
+  #group the patients by their frequencies
+  group_by(visit_n) %>% 
+  
+  #count the total number of patients and visits in each group
+  summarise(patient_n = n(),
+            visit_total_n = sum(visit_n)) %>% 
+  
+  #calculate the percentages
+  mutate(patient_pct = round(patient_n/sum(patient_n)*100,2),
+         visit_pct = round(visit_total_n/sum(visit_total_n)*100,2)) %>% 
+  
+  #calculate the cumulative percentages
+  arrange(desc(visit_n)) %>% 
+  mutate(patient_cumpct = cumsum(patient_pct),
+         visit_cumpct = cumsum(visit_pct)) %>% 
+  
+  print()
+
+#save the tibble as an excel
+#write.xlsx(patients_frequency, "patients_frequency.xlsx")
+```
+
+From the cumulative percentages, we can tell that patients who visit the
+GP more than 7 times account for only about 10% of total patients, but
+more than 45% of the consultations. Therefore, we name this group as
+`Frequent` and the other as `Non-frequent`.
+
+```{r}
+patients_frequency %>%
+
+  #summarize percentage of visits of frequent and non-frequent patients
+
+  mutate(patient_type = case_when(visit_n >= 7 ~ "Frequent(>=7)",
+                                  visit_n < 7 ~ "Non-frequent(<7)")) %>%
+  
+  group_by(patient_type) %>%
+
+  summarise(pct_visit_total = sum(visit_pct),
+            pct_patient_total = sum(patient_pct)) %>%
+  
+  ggplot()+
+
+  aes(x = '',
+      y = pct_visit_total,
+      fill = patient_type) +
+
+  geom_col(position = "stack") +
+
+  scale_fill_brewer()+
+
+  geom_text(aes(label = paste0(pct_visit_total,"%")),
+            position = position_stack(vjust = 0.5)) +
+
+  coord_polar("y")+
+
+  theme_void()+
+
+  theme(axis.ticks = element_blank(),
+        axis.text = element_blank())+
+
+  labs(title = "% of Consultation by Patient Type",
+       x = NULL, y = NULL,
+       fill = "Patient Type")
+
+```
+
+Label the patients as `Frequent` and `Non-frequent`.
+
+```{r}
+patients_n_visits_6 <- 
+  patients_n_visits_5 %>% 
+  mutate(segment = case_when(visit_n >= 7 ~ "Frequent",
+                             visit_n < 7 ~ "Non-frequent")) %>% 
+  print()
+```
+
+## Hypothesis and Assumptions
+
+Now that we have frequent users of GP, to find out inappropriate usage,
+we need to make a few assumptions about which group in the frequent
+users is more likely to use GP inappropriately. In other words, how
+likely is frequent usage associate with inappropriate usage for a
+particular group of patients.
+
+According to the hypothesis provided, Age/Gender/Chronic
+Disease/Registration Cohort might have an impact on the patient's
+frequency. We might take that into consideration when we decide whether
+the patient has an appropriate clinical need.
+
+### Age: people under 8 or above 65 are not likely to use GP inappropriately
+
+People under 8 or above 65 account for about 1/3 of the Frequent
+patients, but only 1/5 of the Non-frequent patient.
+
+```{r}
+patients_n_visits_6 %>%
+  
+  count(age_group = factor(age_group), segment = factor(segment)) %>% 
+    mutate(pct = prop.table(n)) %>% 
+  
+  ggplot()+
+  
+  aes(x = segment,
+      y = pct,
+      fill = age_group,
+      label = scales::percent(pct))+
+  
+  geom_col(position = "dodge")+
+  
+  geom_text(color = "Black",
+            position = position_dodge(width = .9), 
+            vjust = -0.2, size = 4) + 
+  
+  scale_y_continuous(labels = scales::percent)+
+  
+  scale_fill_manual(values = c("#001e62","#c6cddc"))+
+  
+  theme_minimal()+
+  
+  theme(legend.position = "bottom")+
+  
+  labs(title = "Patients frequencies in different age groups",
+       x = "Patient Segment", y = NULL,
+       fill = "Age Group")
+```
+
+### Gender: female are not likely to use GP inappropriately
+
+The bar plot below shows that Female accounts for more frequent
+patients.
+
+```{r}
+patients_n_visits_6 %>%
+  
+  count(gender = factor(gender), segment = factor(segment)) %>% 
+    mutate(pct = prop.table(n)) %>% 
+  
+  ggplot()+
+  
+  aes(x = segment,
+      y = pct,
+      fill = gender,
+      label = scales::percent(pct))+
+  
+  geom_col(position = "dodge")+
+  
+  geom_text(color = "Black",
+            position = position_dodge(width = .9), 
+            vjust = -0.2, size = 4) + 
+  
+  scale_y_continuous(labels = scales::percent)+
+  
+  scale_fill_manual(values = c("#001e62","#c6cddc"))+
+  
+  theme_minimal()+
+  
+  theme(legend.position = "bottom")+
+  
+  labs(title = "Patients frequencies in different gender",
+       x = "Patient Segment", y = NULL,
+       fill = "Gender")
+```
+
+### Chronic Disease: people with chronic diseases are not likely to use GP inappropriately
+
+People with chronic diseases have a higher proportion of Frequent
+patients.
+
+```{r}
+patients_n_visits_6 %>%
+  
+  #first plot for patients who do/does not have chronic disease
+  
+  count(chronic_disease = factor(chronic_disease), segment = factor(segment)) %>% 
+    mutate(pct = prop.table(n)) %>% 
+  
+  ggplot()+
+  
+  aes(x = segment,
+      y = pct,
+      fill = chronic_disease,
+      label = scales::percent(pct))+
+  
+  geom_col(position = "dodge")+
+  
+  geom_text(color = "Black",
+            position = position_dodge(width = .9), 
+            vjust = -0.2, size = 4)+ 
+  
+  scale_y_continuous(labels = scales::percent)+
+  
+  scale_fill_manual(values = c("#001e62","#c6cddc"))+
+  
+  theme_minimal()+
+  
+  theme(legend.position = "bottom")+
+  
+  labs(title = "Patients frequencies by whether they have chronic disease",
+       x = "Patient Segment", y = NULL,
+       fill = "Whether the patient has chronic disease")
+```
+
+The more chronic diseases the patient has, the less likely it will be a
+Non-frequent patient.
+
+```{r}
+patients_n_visits_6 %>%
+  
+  #then only plot for patients who have chronic disease
+  filter(chronic_disease == "Yes") %>% 
+  
+  ggplot()+
+  
+  aes(x = n_disease,
+      fill = segment)+
+  
+  geom_bar(stat = "count")+
+  
+  scale_fill_manual(values = c("#001e62","#c6cddc"))+
+  
+  scale_x_continuous(breaks = c(1:7))+
+  
+  theme_minimal()+
+  
+  theme(legend.position = "bottom")+
+  
+  labs(title = "Patients frequencies by # of chronic disease they have",
+       x = "How many chronic disease the patient has", y = NULL,
+       fill = "Segment")
+```
+
+### Registration Cohort: 10%-50% rule does not apply to the new cohort
+
+```{r}
+#Filter data for just people in the "New" cohort
+patients_frequency_cohort <- patients_n_visits_6 %>%
+  
+  filter(cohort == "New") %>% 
+  
+  #group the patients by their frequencies
+  group_by(visit_n) %>% 
+  
+  #count the total number of patients and visits in each group
+  summarise(patient_n = n(),
+            visit_total_n = sum(visit_n)) %>% 
+  
+  #calculate the percentages
+  mutate(patient_pct = round(patient_n/sum(patient_n)*100,2),
+         visit_pct = round(visit_total_n/sum(visit_total_n)*100,2)) %>% 
+  
+  #calculate the cumulative percentages
+  arrange(desc(visit_n)) %>% 
+  mutate(patient_cumpct = cumsum(patient_pct),
+         visit_cumpct = cumsum(visit_pct)) %>% 
+  
+  print()
+```
+
+```{r}
+#Filter data for just people in the "Old" cohort
+patients_frequency_cohort_old <- patients_n_visits_6 %>%
+  
+  filter(cohort == "Old") %>% 
+  
+  #group the patients by their frequencies
+  group_by(visit_n) %>% 
+  
+  #count the total number of patients and visits in each group
+  summarise(patient_n = n(),
+            visit_total_n = sum(visit_n)) %>% 
+  
+  #calculate the percentages
+  mutate(patient_pct = round(patient_n/sum(patient_n)*100,2),
+         visit_pct = round(visit_total_n/sum(visit_total_n)*100,2)) %>% 
+  
+  #calculate the cumulative percentages
+  arrange(desc(visit_n)) %>% 
+  mutate(patient_cumpct = cumsum(patient_pct),
+         visit_cumpct = cumsum(visit_pct)) %>% 
+  
+  print()
+```
+
+As we can see, new cohort does not appears to behave as the 10%-50%
+pattern we discussed before, and 93% of the patients haven't visited GP,
+therefore, we only filter for old cohort to find inappropriate usage.
+
+### Average appointment time and appointment intervals
+
+I also assume that people with shorter average appointment time and
+intervals between appointments are more likely to associate with
+inappropriate usage.
+
+## Identify Inappropriate Usage
+
+Filter for frequent patients in the old cohort.
+```{r}
+patients_oldco <- patients_n_visits_6 %>% 
+  
+  #Filter only for old cohort
+  filter(cohort == "Old"&
+           segment == "Frequent") %>% 
+  
+  print()
+```
+
+Filter out the patients using the following features based on the assumptions we discussed above.
+
+    Features include:
+
+-   People who are not "Under 8 or above 65";
+-   People who do not have chronic disease;
+-   Shorter average planned time;
+-   Shorter Intervals between appointments;
+
+```{r}
+# first for vulnerable patients
+patients_oldco_sus <- patients_oldco %>%
+  
+  # Shorter average planned time
+  filter(avg_time<median(avg_time) | 
+         # Shorter Intervals between appointments
+         app_interval_int<median(app_interval_int)) %>% 
+  
+  print()
+```
+
+```{r}
+patients_oldco_sus_notvul <- patients_oldco_sus %>% 
+  filter(age_group == "Others" &
+         chronic_disease == "No") %>% 
+  print()
+```
+
+```{r}
+#save the tibble as an excel
+#write.xlsx(patients_oldco_sus_notvul, "final_patient_list_1.xlsx")
+```
+
+# Reflections
+
+1. Gender does affect patients' frequency, but it was not taken into consideration when assumptions are established.
+
+2. Assumptions are made based on hypothesis provided, plus my understanding of inappropriate behaviour. In usual practices, qualitative analysis is done in the first place to make sure that we fully understand the reasons behind inappropriate usage.
+
+3. I filtered the data to get the final list due to time constraints. Usually, a score card is designed to assess each patients' behaviour, to see how close each case is to our ideal profile - in this case, a potential inappropriate user. Then select the top 50 in the ranking to get the final list.
+

@@ -1,0 +1,828 @@
+---
+title: 'Female Representation in Movies'
+author: "Nianyu Li"
+date: "June 2023"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+---
+
+```{r}
+#| label: load-libraries
+#| echo: false # This option disables the printing of code (only output is displayed).
+#| message: false
+#| warning: false
+options(scipen = 999) #disable scientific notation
+library(tidyverse)
+library(tidymodels)
+library(GGally)
+library(sf)
+library(leaflet)
+library(janitor)
+library(rpart.plot)
+library(here)
+library(scales)
+library(vip)
+```
+
+
+# The Bechdel Test
+
+https://fivethirtyeight.com/features/the-dollar-and-cents-case-against-hollywoods-exclusion-of-women/
+
+The [Bechdel test](https://bechdeltest.com) is a way to assess how women are depicted in Hollywood movies.  In order for a movie to pass the test:
+
+1. It has to have at least two [named] women in it
+2. Who talk to each other
+3. About something besides a man
+
+There is a nice article and analysis you can find here https://fivethirtyeight.com/features/the-dollar-and-cents-case-against-hollywoods-exclusion-of-women/
+We have a sample of 1394 movies and we want to fit a model to predict whether a film passes the test or not.
+
+```{r read_data}
+
+bechdel <- read_csv(here::here("data", "bechdel.csv")) %>% 
+  mutate(test = factor(test)) 
+glimpse(bechdel)
+
+```
+How many films fail/pass the test, both as a number and as a %?
+
+772 (55.38%) of the films fail.
+622 (44.62%) of the films pass.
+
+```{r}
+test_results <- bechdel %>%
+  
+  #Group the films by test results
+  group_by(test) %>% 
+  
+  #count # of pass and fail
+  summarise(n = n()) %>% 
+  
+  #Create a new column to calculate the percentages
+  mutate(pct = round(n/sum(n)*100,2)) %>% 
+  
+  print()
+```
+
+## Movie scores
+```{r}
+ggplot(data = bechdel, aes(
+  x = metascore,
+  y = imdb_rating,
+  colour = test
+)) +
+  geom_point(alpha = .3, size = 3) +
+  scale_colour_manual(values = c("tomato", "olivedrab")) +
+  labs(
+    x = "Metacritic score",
+    y = "IMDB rating",
+    colour = "Bechdel test"
+  ) +
+ theme_light()
+```
+
+
+# Split the data
+```{r}
+# **Split the data**
+
+set.seed(123)
+
+data_split <- initial_split(bechdel, # updated data
+                           prop = 0.8, 
+                           strata = test)
+
+bechdel_train <- training(data_split) 
+bechdel_test <- testing(data_split)
+```
+
+Check the counts and % (proportions) of the `test` variable in each set.
+
+In the train set:
+617 (55.39%) of the films fail.
+497 (44.61%) of the films pass.
+
+In the test set:
+155 (55.36%) of the films fail.
+125 (44.64%) of the films pass.
+
+```{r}
+test_results_train <- bechdel_train %>%
+  
+  #Group the films by test results
+  group_by(test) %>% 
+  
+  #count # of pass and fail
+  summarise(n = n()) %>% 
+  
+  #Create a new column to calculate the percentages
+  mutate(pct = round(n/sum(n)*100,2)) %>% 
+  
+  print()
+```
+```{r}
+test_results_test <- bechdel_test %>%
+  
+  #Group the films by test results
+  group_by(test) %>% 
+  
+  #count # of pass and fail
+  summarise(n = n()) %>% 
+  
+  #Create a new column to calculate the percentages
+  mutate(pct = round(n/sum(n)*100,2)) %>% 
+  
+  print()
+```
+
+## Feature exploration
+
+## Any outliers?
+
+According to the scatter plots below, the budget, domgross and intgross variables have many outliers. Imdb_rating also has a few outliers. Metascore does not have many outliers.
+
+```{r}
+
+bechdel %>% 
+  select(test, budget_2013, domgross_2013, intgross_2013, imdb_rating, metascore) %>% 
+
+    pivot_longer(cols = 2:6,
+               names_to = "feature",
+               values_to = "value") %>% 
+  ggplot()+
+  aes(x=test, y = value, fill = test)+
+  coord_flip()+
+  geom_boxplot()+
+  facet_wrap(~feature, scales = "free")+
+  theme_bw()+
+  theme(legend.position = "none")+
+  labs(x=NULL,y = NULL)
+
+```
+
+## Scatterplot - Correlation Matrix
+
+Write a paragraph discussing the output of the following
+
+1. Correlation:
+
+Variables that are significantly positively correlated with each other:
+Box revenue (both domestic and international) and budget; 
+Domestic and international box revenue; 
+IMBD/meta scores and box revenue (both domestic and international); 
+IMBD and meta scores.
+
+While budget and scores do not show significant correlations.
+
+2. Distribution:
+
+Scores are closer to normal distributed, while budget and box revenue are skewed, meaning that they are not spread as evenly.
+
+3. Test results
+There are more films that fail the test than those that pass.
+Films that pass the test do not seem to have a higher budget, scores or box revenue than those that fail.
+
+```{r, warning=FALSE, message=FALSE}
+bechdel %>% 
+  select(test, budget_2013, domgross_2013, intgross_2013, imdb_rating, metascore)%>% 
+  ggpairs(aes(colour=test), alpha=0.2)+
+  theme_bw()
+```
+
+
+## Categorical variables
+
+Write a paragraph discussing the output of the following
+
+1. Test results by genre: Action, Animation, Crime, Fantasy and Mystery have more films that pass than films that fail, whereas in Adventure, Biography and Drama, pass/fail is close to half-half. We also have Comedy and Horror that have more passes than fails.
+
+2. Test results by rating: films in all the ratings have more fails than passes. However, films that targeted general audiences and are PG have more passes than NC-17 and R rating films.
+
+```{r}
+bechdel %>% 
+  group_by(genre, test) %>%
+  summarise(n = n()) %>% 
+  mutate(prop = n/sum(n))
+  
+ 
+bechdel %>% 
+  group_by(rated, test) %>%
+  summarise(n = n()) %>% 
+  mutate(prop = n/sum(n))
+```
+
+# Train first models. `test ~ metascore + imdb_rating`
+
+```{r}
+lr_mod <- logistic_reg() %>% 
+  set_engine(engine = "glm") %>% 
+  set_mode("classification")
+
+lr_mod
+
+
+tree_mod <- decision_tree() %>% 
+  set_engine(engine = "C5.0") %>% 
+  set_mode("classification")
+
+tree_mod 
+```
+
+```{r}
+
+
+lr_fit <- lr_mod %>% # parsnip model
+  fit(test ~ metascore + imdb_rating, # a formula
+    data = bechdel_train # dataframe
+  )
+
+tree_fit <- tree_mod %>% # parsnip model
+  fit(test ~ metascore + imdb_rating, # a formula
+    data = bechdel_train # dataframe
+  )
+```
+
+## Logistic regression
+
+```{r}
+lr_fit %>%
+  broom::tidy()
+
+lr_preds <- lr_fit %>%
+  augment(new_data = bechdel_train) %>%
+  mutate(.pred_match = if_else(test == .pred_class, 1, 0))
+
+```
+
+### Confusion matrix
+
+```{r}
+lr_preds %>% 
+  conf_mat(truth = test, estimate = .pred_class) %>% 
+  autoplot(type = "heatmap")
+
+
+```
+
+
+## Decision Tree
+```{r}
+tree_preds <- tree_fit %>%
+  augment(new_data = bechdel) %>%
+  mutate(.pred_match = if_else(test == .pred_class, 1, 0)) 
+
+
+```
+
+```{r}
+tree_preds %>% 
+  conf_mat(truth = test, estimate = .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+## Draw the decision tree
+
+```{r}
+draw_tree <- 
+    rpart::rpart(
+        test ~ metascore + imdb_rating,
+        data = bechdel_train, # uses data that contains both birth weight and `low`
+        control = rpart::rpart.control(maxdepth = 5, cp = 0, minsplit = 10)
+    ) %>% 
+    partykit::as.party()
+plot(draw_tree)
+
+```
+
+# Cross Validation
+
+Run the code below. What does it return?
+
+Use k-fold cross validation to build a set of 10 validation folds.
+
+```{r}
+set.seed(123)
+bechdel_folds <- vfold_cv(data = bechdel_train, 
+                          v = 10, 
+                          strata = test)
+bechdel_folds
+```
+
+## `fit_resamples()`
+
+Trains and tests a resampled model.
+
+```{r}
+lr_fit <- lr_mod %>%
+  fit_resamples(
+    test ~ metascore + imdb_rating,
+    resamples = bechdel_folds
+  )
+
+
+tree_fit <- tree_mod %>%
+  fit_resamples(
+    test ~ metascore + imdb_rating,
+    resamples = bechdel_folds
+  )
+```
+
+
+## `collect_metrics()`
+
+Unnest the metrics column from a tidymodels `fit_resamples()`
+```{r}
+
+collect_metrics(lr_fit)
+collect_metrics(tree_fit)
+
+
+```
+According to the results above, ROC of logistic regression model (0.61) is higher than that of the decision tree model (0.55). Therefore, the logistic regression model has better predictive power.
+
+The ROC plot for decision tree shows that the AUC is slightly bigger than half of the square, meaning that the decision tree model is a little bit better than random guessing, but not too much.
+
+```{r}
+tree_preds <- tree_mod %>% 
+  fit_resamples(
+    test ~ metascore + imdb_rating, 
+    resamples = bechdel_folds,
+    control = control_resamples(save_pred = TRUE) #<<
+  )
+
+# What does the data for ROC look like?
+tree_preds %>% 
+  collect_predictions() %>% 
+  roc_curve(truth = test, .pred_Fail)  
+
+# Draw the ROC
+tree_preds %>% 
+  collect_predictions() %>% 
+  roc_curve(truth = test, .pred_Fail) %>% 
+  autoplot()
+
+```
+
+
+# Build a better training set with `recipes`
+
+## Preprocessing options
+
+- Encode categorical predictors
+- Center and scale variables
+- Handle class imbalance
+- Impute missing data
+- Perform dimensionality reduction 
+- ... ...
+
+## To build a recipe
+
+1. Start the `recipe()`
+1. Define the variables involved
+1. Describe **prep**rocessing [step-by-step]
+
+## Collapse Some Categorical Levels
+
+Do we have any `genre` with few observations?  Assign genres that have less than 3% to a new category 'Other'
+
+
+```{r}
+#| echo = FALSE
+bechdel %>% 
+  count(genre) %>% 
+  mutate(genre = fct_reorder(genre, n)) %>% 
+  ggplot(aes(x = genre, 
+             y = n)) +
+  geom_col(alpha = .8) +
+  coord_flip() +
+  labs(x = NULL) +
+  geom_hline(yintercept = (nrow(bechdel_train)*.03), lty = 3)+
+  theme_light()
+```
+
+
+```{r}
+movie_rec <-
+  recipe(test ~ .,
+         data = bechdel_train) %>%
+  
+  # Genres with less than 3% will be in a catewgory 'Other'
+    step_other(genre, threshold = .03) 
+```
+  
+
+## Before recipe
+
+```{r}
+#| echo = FALSE
+bechdel_train %>% 
+  count(genre, sort = TRUE)
+```
+
+
+## After recipe
+
+```{r}
+movie_rec %>% 
+  prep() %>% 
+  bake(new_data = bechdel_train) %>% 
+  count(genre, sort = TRUE)
+```
+
+## `step_dummy()`
+
+Converts nominal data into numeric dummy variables
+
+```{r}
+#| results = "hide"
+movie_rec <- recipe(test ~ ., data = bechdel) %>%
+  step_other(genre, threshold = .03) %>% 
+  step_dummy(all_nominal_predictors()) 
+
+movie_rec 
+```
+
+## Let's think about the modelling 
+
+What if there were no films with `rated` NC-17 in the training data?
+
+-  Will the model have a coefficient for `rated` NC-17?
+
+No, it won't have one since the category is not included in the training data.
+
+-  What will happen if the test data includes a film with `rated` NC-17?
+
+If the test data does include this category, the model fails to predict the value for a film with 'rated' NC-17.
+
+In general, the model learns patterns in data, and if there's no pattern in a particular dataset, it fails to provide a precise prediction. If enough data is fed in each category, we wouldn't have such problem.
+
+Step_novel can be used to address problems with categorical variables.
+
+## `step_novel()`
+
+Adds a catch-all level to a factor for any new values not encountered in model training, which lets R intelligently predict new levels in the test set.
+
+```{r}
+
+movie_rec <- recipe(test ~ ., data = bechdel) %>%
+  step_other(genre, threshold = .03) %>% 
+  step_novel(all_nominal_predictors) %>% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal_predictors()) 
+
+```
+
+
+## `step_zv()`
+
+Intelligently handles zero variance variables (variables that contain only a single value)
+
+```{r}
+movie_rec <- recipe(test ~ ., data = bechdel) %>%
+  step_other(genre, threshold = .03) %>% 
+  step_novel(all_nominal(), -all_outcomes()) %>% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_numeric(), -all_outcomes()) 
+  
+```
+
+
+## `step_normalize()`
+
+Centers then scales numeric variable (mean = 0, sd = 1)
+
+```{r}
+movie_rec <- recipe(test ~ ., data = bechdel) %>%
+  step_other(genre, threshold = .03) %>% 
+  step_novel(all_nominal(), -all_outcomes()) %>% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_numeric(), -all_outcomes())  %>% 
+  step_normalize(all_numeric()) 
+
+```
+
+
+## `step_corr()`
+
+Removes highly correlated variables
+
+```{r}
+movie_rec <- recipe(test ~ ., data = bechdel) %>%
+  step_other(genre, threshold = .03) %>% 
+  step_novel(all_nominal(), -all_outcomes()) %>% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_numeric(), -all_outcomes())  %>% 
+  step_normalize(all_numeric()) 
+#%>% 
+  #step_corr(all_predictors(), threshold = 0.75, method = "spearman") 
+
+
+
+movie_rec
+```
+
+
+# Define different models to fit
+
+```{r}
+## Model Building
+
+# 1. Pick a `model type`
+# 2. set the `engine`
+# 3. Set the `mode`: regression or classification
+
+# Logistic regression
+log_spec <-  logistic_reg() %>%  # model type
+  set_engine(engine = "glm") %>%  # model engine
+  set_mode("classification") # model mode
+
+# Show your model specification
+log_spec
+
+# Decision Tree
+tree_spec <- decision_tree() %>%
+  set_engine(engine = "C5.0") %>%
+  set_mode("classification")
+
+tree_spec
+
+# Random Forest
+library(ranger)
+
+rf_spec <- 
+  rand_forest() %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+
+# Boosted tree (XGBoost)
+library(xgboost)
+
+xgb_spec <- 
+  boost_tree() %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification") 
+
+# K-nearest neighbour (k-NN)
+knn_spec <- 
+  nearest_neighbor(neighbors = 4) %>% # we can adjust the number of neighbors 
+  set_engine("kknn") %>% 
+  set_mode("classification") 
+```
+
+
+# Bundle recipe and model with `workflows`
+
+
+```{r}
+log_wflow <- # new workflow object
+ workflow() %>% # use workflow function
+ add_recipe(movie_rec) %>%   # use the new recipe
+ add_model(log_spec)   # add your model spec
+
+# show object
+log_wflow
+
+
+## A few more workflows
+
+tree_wflow <-
+ workflow() %>%
+ add_recipe(movie_rec) %>% 
+ add_model(tree_spec) 
+
+rf_wflow <-
+ workflow() %>%
+ add_recipe(movie_rec) %>% 
+ add_model(rf_spec) 
+
+xgb_wflow <-
+ workflow() %>%
+ add_recipe(movie_rec) %>% 
+ add_model(xgb_spec)
+
+knn_wflow <-
+ workflow() %>%
+ add_recipe(movie_rec) %>% 
+ add_model(knn_spec)
+
+```
+
+HEADS UP
+
+1. How many models have you specified?
+
+There are 5 models:
+1) Logistic regression: log_spec
+2) Decision Tree: tree_spec
+3) Random Forest: rf_spec
+4) Boosted tree: xgb_spec
+5) K-nearest neighbour: knn_spec
+
+2. What's the difference between a model specification and a workflow?
+
+A model specification is creating a certain model object that can be applied to a dataset later to predict the value of a dependent variable.
+
+A workflow is an object that bundles different processes including data-preprocessing and modelling. It puts toghter the recipe and the model, making the process more efficient.
+
+3. Do you need to add a formula (e.g., `test ~ .`)  if you have a recipe?
+
+A formula because needs to be specified within the recipe() function. For example, in `test ~ .`, test is the model outcome and . means all other variables are predictors.
+
+# Model Comparison
+
+You now have all your models. Adapt the code from slides `code-from-slides-CA-housing.R`, line 400 onwards to assess which model gives you the best classification. 
+
+
+```{r}
+#Logistic regression results
+log_res <- log_wflow %>% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, accuracy,
+      kap, roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)) 
+
+# Show average performance over all folds (note that we use log_res):
+log_res %>%  collect_metrics(summarize = TRUE)
+```
+
+```{r}
+#Decision Tree results
+
+tree_res <-
+  tree_wflow %>% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+tree_res %>%  collect_metrics(summarize = TRUE)
+```
+
+```{r}
+#Random Forest
+
+rf_res <-
+  rf_wflow %>% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+rf_res %>%  collect_metrics(summarize = TRUE)
+
+```
+
+```{r}
+#Boosted tree - XGBoost
+
+xgb_res <- 
+  xgb_wflow %>% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+xgb_res %>% collect_metrics(summarize = TRUE)
+```
+
+```{r}
+#K-nearest neighbour
+
+knn_res <- 
+  knn_wflow %>% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+knn_res %>% collect_metrics(summarize = TRUE)
+```
+
+```{r}
+# Model Comparison
+
+log_metrics <- 
+  log_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  # add the name of the model to every row
+  mutate(model = "Logistic Regression") 
+
+tree_metrics <- 
+  tree_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Decision Tree")
+
+rf_metrics <- 
+  rf_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Random Forest")
+
+xgb_metrics <- 
+  xgb_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "XGBoost")
+
+knn_metrics <- 
+  knn_res %>% 
+  collect_metrics(summarise = TRUE) %>%
+  mutate(model = "Knn")
+
+# create dataframe with all models
+model_compare <- bind_rows(log_metrics,
+                           tree_metrics,
+                           rf_metrics,
+                           xgb_metrics,
+                           knn_metrics) 
+
+#Pivot wider to create barplot
+  model_comp <- model_compare %>% 
+  select(model, .metric, mean, std_err) %>% 
+  pivot_wider(names_from = .metric, values_from = c(mean, std_err)) 
+
+# show mean are under the curve (ROC-AUC) for every model
+model_comp %>% 
+  arrange(mean_roc_auc) %>% 
+  mutate(model = fct_reorder(model, mean_roc_auc)) %>% # order results
+  ggplot(aes(model, mean_roc_auc, fill=model)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Blues") +
+   geom_text(
+     size = 3,
+     aes(label = round(mean_roc_auc, 2), 
+         y = mean_roc_auc + 0.08),
+     vjust = 1
+  )+
+  theme_light()+
+  theme(legend.position = "none")+
+  labs(y = NULL)
+```
+
+From the plot above, we can tell that Random Forest model has the highest ROC_AUC. We then choose it as the best model to do the last_fit() on test dataset.
+
+```{r}
+last_fit_rf <- last_fit(rf_wflow, 
+                        split = data_split,
+                        metrics = metric_set(
+                          accuracy, f_meas, kap, precision,
+                          recall, roc_auc, sens, spec))
+
+last_fit_rf %>% collect_metrics(summarize = TRUE)
+
+#Compare to training
+rf_res %>% collect_metrics(summarize = TRUE)
+
+#Variable importance using `{vip}` package
+
+library(vip)
+
+last_fit_rf %>% 
+  pluck(".workflow", 1) %>%   
+  pull_workflow_fit() %>% 
+  vip(num_features = 10) +
+  theme_light()
+
+# Final Confusion Matrix
+
+last_fit_rf %>%
+  collect_predictions() %>% 
+  conf_mat(test, .pred_class) %>% 
+  autoplot(type = "heatmap")
+
+# Final ROC curve
+last_fit_rf %>% 
+  collect_predictions() %>% 
+  roc_curve(test, .pred_Fail) %>% 
+  autoplot()
+```
+
+From the final model, we can tell that using random forest, the most important factors affecting the Bechdel test results are: film budget, IMDB rating and domestic gross box revenue.

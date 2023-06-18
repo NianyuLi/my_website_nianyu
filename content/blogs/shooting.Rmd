@@ -1,0 +1,395 @@
+---
+title: "Massive Shooting"
+author: "Nianyu Li"
+date: "June 2023"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+---
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: load-libraries
+#| echo: false # This option disables the printing of code (only output is displayed).
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(wbstats)
+library(skimr)
+library(here)
+library(lubridate)
+```
+
+# Mass shootings in the US
+
+In July 2012, in the aftermath of a mass shooting in a movie theater in Aurora, Colorado, [Mother Jones](https://www.motherjones.com/politics/2012/07/mass-shootings-map/) published a report on mass shootings in the United States since 1982. Importantly, they provided the underlying data set as [an open-source database](https://www.motherjones.com/politics/2012/12/mass-shootings-mother-jones-full-data/) for anyone interested in studying and understanding this criminal behavior.
+
+## Obtain the data
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+mass_shootings <- read_csv(here::here("data", "mass_shootings.csv"))
+
+glimpse(mass_shootings)
+```
+
+| column(variable)     | description                                                                 |
+|---------------------------|---------------------------------------------|
+| case                 | short name of incident                                                      |
+| year, month, day     | year, month, day in which the shooting occurred                             |
+| location             | city and state where the shooting occcurred                                 |
+| summary              | brief description of the incident                                           |
+| fatalities           | Number of fatalities in the incident, excluding the shooter                 |
+| injured              | Number of injured, non-fatal victims in the incident, excluding the shooter |
+| total_victims        | number of total victims in the incident, excluding the shooter              |
+| location_type        | generic location in which the shooting took place                           |
+| male                 | logical value, indicating whether the shooter was male                      |
+| age_of_shooter       | age of the shooter when the incident occured                                |
+| race                 | race of the shooter                                                         |
+| prior_mental_illness | did the shooter show evidence of mental illness prior to the incident?      |
+
+## Explore the data
+
+### Specific questions
+
+-   Generate a data frame that summarizes the number of mass shootings per year.
+
+```{r}
+mass_shootings %>% 
+  group_by(year) %>% 
+  summarize(count = n())
+```
+
+-   Generate a bar chart that identifies the number of mass shooters associated with each race category. The bars should be sorted from highest to lowest and each bar should show its number.
+
+```{r}
+#Create a table that shows the number of shooters in each race category
+shooters_race <- mass_shootings %>%
+  #Remove the NA in race
+  filter(!is.na(race)) %>% 
+  group_by(race) %>% 
+  summarize(count = n())
+
+print(shooters_race)
+
+#Plot the table above.
+shooters_race %>% 
+  
+  #sort the bars from highest to lowest
+  mutate(race = fct_reorder(race, count)) %>% 
+  
+  ggplot()+
+  
+  aes(x = count,
+      y = race) +
+  
+  geom_col(fill = "#001E62") +
+  
+  #add labels to show # of shooters on each bar
+  geom_text(aes(label = count),
+                hjust = 1,
+                color = "#FFFFFF",
+                size = 5) +
+  
+  #add titles
+  labs(title = "Which race is associated with most shooters",
+       subtitle = "Number of shooters in each race",
+       x = "Number of shooter",
+       y = NULL) +
+  
+  theme_void() +
+  #adjust the positions and sizes
+  theme(plot.title.position = "plot",
+        axis.text = element_text(size=12),
+        plot.title = element_text(size=18))+
+  
+  NULL
+  
+```
+
+-   Generate a boxplot visualizing the number of total victims, by type of location.
+
+```{r warning=FALSE}
+#Create a table that shows the number of total victims in each case by type of location
+victims_location_type <- 
+  mass_shootings %>%
+  select(location_type,
+         total_victims)
+
+print(victims_location_type)
+
+#Note that 95% of the data is below 44:
+quantile(mass_shootings$total_victims, probs = .95)
+
+#Plot the table above in a box plot
+victims_location_type %>% 
+  
+  ggplot()+
+  
+  aes(x = location_type,
+      y = total_victims)+
+  
+  #Create the box plot and remove outliers
+  geom_boxplot()+
+  scale_y_continuous(limits = c(0,50))+
+  
+  #add titles
+  labs(title = "Which type of location had the most victims",
+       subtitle = "total victims in each case by type of location",
+       x = "Location Type",
+       y = "Total Victims",
+       caption = "Note: 4 extreme values removed:
+       Other: 604, 102, 82; School: 55") +
+  
+  theme_light()+
+                  
+  NULL
+  
+```
+
+-   Redraw the same plot, but remove the Las Vegas Strip massacre from the dataset.
+
+It can be done using the method in the question above, i.e.setting a limit on y axis. We can also filter out the outlier in the first place.
+
+```{r}
+victims_location_type_1 <- 
+  mass_shootings %>%
+  select(location_type,
+         total_victims) %>% 
+  filter(total_victims!=604)
+
+print(victims_location_type_1)
+
+#Plot the table above in a box plot
+victims_location_type_1 %>% 
+  
+  ggplot()+
+  
+  aes(x = location_type,
+      y = total_victims)+
+  
+  geom_boxplot()+
+  
+  #add titles
+  labs(title = "Which type of location had the most victims",
+       subtitle = "total victims in each case by type of location",
+       x = "Location Type",
+       y = "Total Victims",
+       caption = "Note: 1 extreme values removed:
+       Other: 604 in Las Vegas Strip massacre") +
+  
+  theme_light()+
+                  
+  NULL
+```
+
+### More open-ended questions
+
+Address the following questions. Generate appropriate figures/tables to support your conclusions.
+
+-   How many white males with prior signs of mental illness initiated a mass shooting after 2000?
+
+```{r}
+#Filter out the data using the criteria above
+mass_shootings %>% 
+  filter(race == "White",
+         male == TRUE,
+         prior_mental_illness == "Yes",
+         year > 2000) %>% 
+  count()
+
+#Filtered data shows that there are 22 of them.
+```
+
+-   Which month of the year has the most mass shootings? Generate a bar chart sorted in chronological (natural) order (Jan-Feb-Mar- etc) to provide evidence of your answer.
+
+Feburary has the most mass shootings. See bar chart below.
+
+```{r}
+#Create a table to show mass shootings in each month of the year
+shootings_by_month <- 
+  mass_shootings %>%
+  
+  #convert month to a factor
+  mutate(month = factor(month, levels = month.abb)) %>% 
+  
+  #group by month and count # of shootings in each month
+  group_by(month) %>% 
+  summarise(number = n())
+
+print(shootings_by_month)
+
+#Plot the table
+
+shootings_by_month %>% 
+  
+  ggplot()+
+  
+  aes(x = month,
+      y = number)+
+  
+  geom_bar(stat = "identity",
+           fill = "#001E62")+
+  
+  #add titles
+  labs(title = "Which month did most shootings happened",
+       subtitle = "Number of shootings in each month",
+       x = "Month",
+       y = "Number of shootings")+
+  
+  theme_classic()+
+  
+  NULL
+```
+
+-   How does the distribution of mass shooting fatalities differ between White and Black shooters? What about White and Latino shooters?
+
+Black and white shooter: in most cases, fatalities caused by black shooters are smaller than that of white shooters. As the density plot indicates, fatalities by black shooters are concentrated on the left hand side of fatalities by white shooters. In the white shooters case, the density plot has a longer tail, which means fatalities are more disperse.
+
+White and Latino shooters: in most cases, fatalities caused by latino shooters are also smaller than that of white shooters. They are also more concentrated on the left side of the plot, compared to that caused by white shooters.
+
+See density plot below.
+
+```{r}
+#Create a table to show shootings fatalities by shooters race
+fatalities_race <- 
+  mass_shootings %>%
+  #filter out data that is not NA in race
+  filter(!is.na(race)) %>%
+  select(fatalities, race)
+
+print(fatalities_race)
+
+#Plot the distribution of fatalities, using geom_density
+fatalities_race %>%  
+  
+  ggplot()+
+  
+  aes(x = fatalities,
+      fill = race)+
+  
+  geom_density(color = NA,alpha = 0.5)+
+  
+  scale_x_continuous(breaks = seq(0,60,5))+
+  
+  theme_classic()+
+  
+  #add titles
+  labs(title = "How do fatalities differ among shooters from different races",
+       subtitle = "Distribution of fatalities associated with shooter in each race",
+       x = "Fatalities",
+       y = NULL)+
+  
+  NULL
+```
+
+### Very open-ended
+
+-   Are mass shootings with shooters suffering from mental illness different from mass shootings with no signs of mental illness in the shooter?
+
+Shootings were more likely to be conducted by shooters with mental illness. Location types are also different. Shooters with mental illness have a wider choices of locations and they can shoot in public spaces like airports and religious places.
+
+See pie chart below for percentages of type of locations for shooters with and without mental illness.
+
+```{r}
+#Create a table to show percent of type of locations for the two type of shooters.
+shooters_mental_location <- 
+  mass_shootings %>% 
+  #filter out NAs
+  filter(!is.na(prior_mental_illness)) %>% 
+  group_by(prior_mental_illness,
+           location_type) %>% 
+  summarize(count = n())
+
+print(shooters_mental_location)
+
+#Create a pie chart to show differences in location type by the two type of shooters
+
+shooters_mental_location %>% 
+  
+  ggplot()+
+  
+  aes(x="",
+      y = count,
+      fill = location_type)+
+  
+  geom_bar(stat="identity", width=1)+
+  coord_polar("y", start=0)+
+  
+  facet_wrap(~prior_mental_illness)+
+  
+  scale_fill_brewer(palette="Set2")+
+  
+  theme_minimal()+
+  
+  #add titles
+  labs(title = "How do shooters with and without mental illness differ in choices of locations",
+       subtitle = "Location type associated with two type of shooters",
+       x = NULL)+
+  
+  NULL
+  
+```
+
+-   Assess the relationship between mental illness and total victims, mental illness and location type, and the intersection of all three variables.
+
+Mental illness and total victims: shooters with mental illness were causing more victims than those without.
+
+Mental illness and location type: shooters with mental illness chose locations more randomly, while those without mainly focused on others, schools and workplaces.
+
+Intersection: shooters with mental illness shooting at school and workplaces were causing most of the victims.
+
+See bar plots below.
+
+```{r}
+#Create a table that shows all three variables above
+mental_victims_location <- 
+  mass_shootings %>% 
+  #filter out NAs
+  filter(!is.na(prior_mental_illness)) %>% 
+  select(prior_mental_illness,
+         total_victims,
+         location_type)
+
+print(mental_victims_location)
+
+#Bar plots
+mental_victims_location %>% 
+  
+  ggplot()+
+  
+  aes(x = location_type,
+      y = total_victims,
+      fill = prior_mental_illness)+
+  
+  geom_bar(stat = "identity")+
+  
+  scale_fill_brewer(palette="Blues",
+                    name  ="Prior Mental Illness")+
+  
+  theme_minimal()+
+  
+  #add titles
+  labs(title = "How do shooters with and without mental illness differ in number of victims",
+       subtitle = "number of victims associated with two type of shooters",
+       x = "Type of Location",
+       y = "Number of Victims")+
+  
+  NULL
+
+```

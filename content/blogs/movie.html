@@ -1,0 +1,988 @@
+---
+title: 'Female Representation in Movies'
+author: "Nianyu Li"
+date: "June 2023"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+---
+
+
+
+<div id="the-bechdel-test" class="section level1">
+<h1>The Bechdel Test</h1>
+<p><a href="https://fivethirtyeight.com/features/the-dollar-and-cents-case-against-hollywoods-exclusion-of-women/" class="uri">https://fivethirtyeight.com/features/the-dollar-and-cents-case-against-hollywoods-exclusion-of-women/</a></p>
+<p>The <a href="https://bechdeltest.com">Bechdel test</a> is a way to assess how women are depicted in Hollywood movies. In order for a movie to pass the test:</p>
+<ol style="list-style-type: decimal">
+<li>It has to have at least two [named] women in it</li>
+<li>Who talk to each other</li>
+<li>About something besides a man</li>
+</ol>
+<p>There is a nice article and analysis you can find here <a href="https://fivethirtyeight.com/features/the-dollar-and-cents-case-against-hollywoods-exclusion-of-women/" class="uri">https://fivethirtyeight.com/features/the-dollar-and-cents-case-against-hollywoods-exclusion-of-women/</a>
+We have a sample of 1394 movies and we want to fit a model to predict whether a film passes the test or not.</p>
+<pre class="r"><code>bechdel &lt;- read_csv(here::here(&quot;data&quot;, &quot;bechdel.csv&quot;)) %&gt;% 
+  mutate(test = factor(test)) </code></pre>
+<pre><code>## Rows: 1394 Columns: 10
+## ── Column specification ────────────────────────────────────────────────────────
+## Delimiter: &quot;,&quot;
+## chr (4): title, test, rated, genre
+## dbl (6): year, budget_2013, domgross_2013, intgross_2013, metascore, imdb_ra...
+## 
+## ℹ Use `spec()` to retrieve the full column specification for this data.
+## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
+<pre class="r"><code>glimpse(bechdel)</code></pre>
+<pre><code>## Rows: 1,394
+## Columns: 10
+## $ year          &lt;dbl&gt; 2013, 2013, 2013, 2013, 2013, 2013, 2013, 2013, 2013, 20…
+## $ title         &lt;chr&gt; &quot;12 Years a Slave&quot;, &quot;2 Guns&quot;, &quot;42&quot;, &quot;47 Ronin&quot;, &quot;A Good …
+## $ test          &lt;fct&gt; Fail, Fail, Fail, Fail, Fail, Pass, Pass, Fail, Pass, Pa…
+## $ budget_2013   &lt;dbl&gt; 2.00, 6.10, 4.00, 22.50, 9.20, 1.20, 1.30, 13.00, 4.00, …
+## $ domgross_2013 &lt;dbl&gt; 5.3107035, 7.5612460, 9.5020213, 3.8362475, 6.7349198, 1…
+## $ intgross_2013 &lt;dbl&gt; 15.8607035, 13.2493015, 9.5020213, 14.5803842, 30.424919…
+## $ rated         &lt;chr&gt; &quot;R&quot;, &quot;R&quot;, &quot;PG-13&quot;, &quot;PG-13&quot;, &quot;R&quot;, &quot;R&quot;, &quot;PG-13&quot;, &quot;PG-13&quot;, …
+## $ metascore     &lt;dbl&gt; 97, 55, 62, 29, 28, 55, 48, 33, 90, 58, 52, 78, 83, 53, …
+## $ imdb_rating   &lt;dbl&gt; 8.3, 6.8, 7.6, 6.6, 5.4, 7.8, 5.7, 5.0, 7.5, 7.4, 6.2, 7…
+## $ genre         &lt;chr&gt; &quot;Biography&quot;, &quot;Action&quot;, &quot;Biography&quot;, &quot;Action&quot;, &quot;Action&quot;, …</code></pre>
+<p>How many films fail/pass the test, both as a number and as a %?</p>
+<p>772 (55.38%) of the films fail.
+622 (44.62%) of the films pass.</p>
+<pre class="r"><code>test_results &lt;- bechdel %&gt;%
+  
+  #Group the films by test results
+  group_by(test) %&gt;% 
+  
+  #count # of pass and fail
+  summarise(n = n()) %&gt;% 
+  
+  #Create a new column to calculate the percentages
+  mutate(pct = round(n/sum(n)*100,2)) %&gt;% 
+  
+  print()</code></pre>
+<pre><code>## # A tibble: 2 × 3
+##   test      n   pct
+##   &lt;fct&gt; &lt;int&gt; &lt;dbl&gt;
+## 1 Fail    772  55.4
+## 2 Pass    622  44.6</code></pre>
+<div id="movie-scores" class="section level2">
+<h2>Movie scores</h2>
+<pre class="r"><code>ggplot(data = bechdel, aes(
+  x = metascore,
+  y = imdb_rating,
+  colour = test
+)) +
+  geom_point(alpha = .3, size = 3) +
+  scale_colour_manual(values = c(&quot;tomato&quot;, &quot;olivedrab&quot;)) +
+  labs(
+    x = &quot;Metacritic score&quot;,
+    y = &quot;IMDB rating&quot;,
+    colour = &quot;Bechdel test&quot;
+  ) +
+ theme_light()</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+</div>
+</div>
+<div id="split-the-data" class="section level1">
+<h1>Split the data</h1>
+<pre class="r"><code># **Split the data**
+
+set.seed(123)
+
+data_split &lt;- initial_split(bechdel, # updated data
+                           prop = 0.8, 
+                           strata = test)
+
+bechdel_train &lt;- training(data_split) 
+bechdel_test &lt;- testing(data_split)</code></pre>
+<p>Check the counts and % (proportions) of the <code>test</code> variable in each set.</p>
+<p>In the train set:
+617 (55.39%) of the films fail.
+497 (44.61%) of the films pass.</p>
+<p>In the test set:
+155 (55.36%) of the films fail.
+125 (44.64%) of the films pass.</p>
+<pre class="r"><code>test_results_train &lt;- bechdel_train %&gt;%
+  
+  #Group the films by test results
+  group_by(test) %&gt;% 
+  
+  #count # of pass and fail
+  summarise(n = n()) %&gt;% 
+  
+  #Create a new column to calculate the percentages
+  mutate(pct = round(n/sum(n)*100,2)) %&gt;% 
+  
+  print()</code></pre>
+<pre><code>## # A tibble: 2 × 3
+##   test      n   pct
+##   &lt;fct&gt; &lt;int&gt; &lt;dbl&gt;
+## 1 Fail    617  55.4
+## 2 Pass    497  44.6</code></pre>
+<pre class="r"><code>test_results_test &lt;- bechdel_test %&gt;%
+  
+  #Group the films by test results
+  group_by(test) %&gt;% 
+  
+  #count # of pass and fail
+  summarise(n = n()) %&gt;% 
+  
+  #Create a new column to calculate the percentages
+  mutate(pct = round(n/sum(n)*100,2)) %&gt;% 
+  
+  print()</code></pre>
+<pre><code>## # A tibble: 2 × 3
+##   test      n   pct
+##   &lt;fct&gt; &lt;int&gt; &lt;dbl&gt;
+## 1 Fail    155  55.4
+## 2 Pass    125  44.6</code></pre>
+<div id="feature-exploration" class="section level2">
+<h2>Feature exploration</h2>
+</div>
+<div id="any-outliers" class="section level2">
+<h2>Any outliers?</h2>
+<p>According to the scatter plots below, the budget, domgross and intgross variables have many outliers. Imdb_rating also has a few outliers. Metascore does not have many outliers.</p>
+<pre class="r"><code>bechdel %&gt;% 
+  select(test, budget_2013, domgross_2013, intgross_2013, imdb_rating, metascore) %&gt;% 
+
+    pivot_longer(cols = 2:6,
+               names_to = &quot;feature&quot;,
+               values_to = &quot;value&quot;) %&gt;% 
+  ggplot()+
+  aes(x=test, y = value, fill = test)+
+  coord_flip()+
+  geom_boxplot()+
+  facet_wrap(~feature, scales = &quot;free&quot;)+
+  theme_bw()+
+  theme(legend.position = &quot;none&quot;)+
+  labs(x=NULL,y = NULL)</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+</div>
+<div id="scatterplot---correlation-matrix" class="section level2">
+<h2>Scatterplot - Correlation Matrix</h2>
+<p>Write a paragraph discussing the output of the following</p>
+<ol style="list-style-type: decimal">
+<li>Correlation:</li>
+</ol>
+<p>Variables that are significantly positively correlated with each other:
+Box revenue (both domestic and international) and budget;
+Domestic and international box revenue;
+IMBD/meta scores and box revenue (both domestic and international);
+IMBD and meta scores.</p>
+<p>While budget and scores do not show significant correlations.</p>
+<ol start="2" style="list-style-type: decimal">
+<li>Distribution:</li>
+</ol>
+<p>Scores are closer to normal distributed, while budget and box revenue are skewed, meaning that they are not spread as evenly.</p>
+<ol start="3" style="list-style-type: decimal">
+<li>Test results
+There are more films that fail the test than those that pass.
+Films that pass the test do not seem to have a higher budget, scores or box revenue than those that fail.</li>
+</ol>
+<pre class="r"><code>bechdel %&gt;% 
+  select(test, budget_2013, domgross_2013, intgross_2013, imdb_rating, metascore)%&gt;% 
+  ggpairs(aes(colour=test), alpha=0.2)+
+  theme_bw()</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+</div>
+<div id="categorical-variables" class="section level2">
+<h2>Categorical variables</h2>
+<p>Write a paragraph discussing the output of the following</p>
+<ol style="list-style-type: decimal">
+<li><p>Test results by genre: Action, Animation, Crime, Fantasy and Mystery have more films that pass than films that fail, whereas in Adventure, Biography and Drama, pass/fail is close to half-half. We also have Comedy and Horror that have more passes than fails.</p></li>
+<li><p>Test results by rating: films in all the ratings have more fails than passes. However, films that targeted general audiences and are PG have more passes than NC-17 and R rating films.</p></li>
+</ol>
+<pre class="r"><code>bechdel %&gt;% 
+  group_by(genre, test) %&gt;%
+  summarise(n = n()) %&gt;% 
+  mutate(prop = n/sum(n))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;genre&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre><code>## # A tibble: 24 × 4
+## # Groups:   genre [14]
+##    genre     test      n  prop
+##    &lt;chr&gt;     &lt;fct&gt; &lt;int&gt; &lt;dbl&gt;
+##  1 Action    Fail    260 0.707
+##  2 Action    Pass    108 0.293
+##  3 Adventure Fail     52 0.559
+##  4 Adventure Pass     41 0.441
+##  5 Animation Fail     63 0.677
+##  6 Animation Pass     30 0.323
+##  7 Biography Fail     36 0.554
+##  8 Biography Pass     29 0.446
+##  9 Comedy    Fail    138 0.427
+## 10 Comedy    Pass    185 0.573
+## # ℹ 14 more rows</code></pre>
+<pre class="r"><code>bechdel %&gt;% 
+  group_by(rated, test) %&gt;%
+  summarise(n = n()) %&gt;% 
+  mutate(prop = n/sum(n))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;rated&#39;. You can override using the
+## `.groups` argument.</code></pre>
+<pre><code>## # A tibble: 10 × 4
+## # Groups:   rated [5]
+##    rated test      n  prop
+##    &lt;chr&gt; &lt;fct&gt; &lt;int&gt; &lt;dbl&gt;
+##  1 G     Fail     16 0.615
+##  2 G     Pass     10 0.385
+##  3 NC-17 Fail      5 0.833
+##  4 NC-17 Pass      1 0.167
+##  5 PG    Fail    115 0.561
+##  6 PG    Pass     90 0.439
+##  7 PG-13 Fail    283 0.529
+##  8 PG-13 Pass    252 0.471
+##  9 R     Fail    353 0.568
+## 10 R     Pass    269 0.432</code></pre>
+</div>
+</div>
+<div id="train-first-models.-test-metascore-imdb_rating" class="section level1">
+<h1>Train first models. <code>test ~ metascore + imdb_rating</code></h1>
+<pre class="r"><code>lr_mod &lt;- logistic_reg() %&gt;% 
+  set_engine(engine = &quot;glm&quot;) %&gt;% 
+  set_mode(&quot;classification&quot;)
+
+lr_mod</code></pre>
+<pre><code>## Logistic Regression Model Specification (classification)
+## 
+## Computational engine: glm</code></pre>
+<pre class="r"><code>tree_mod &lt;- decision_tree() %&gt;% 
+  set_engine(engine = &quot;C5.0&quot;) %&gt;% 
+  set_mode(&quot;classification&quot;)
+
+tree_mod </code></pre>
+<pre><code>## Decision Tree Model Specification (classification)
+## 
+## Computational engine: C5.0</code></pre>
+<pre class="r"><code>lr_fit &lt;- lr_mod %&gt;% # parsnip model
+  fit(test ~ metascore + imdb_rating, # a formula
+    data = bechdel_train # dataframe
+  )
+
+tree_fit &lt;- tree_mod %&gt;% # parsnip model
+  fit(test ~ metascore + imdb_rating, # a formula
+    data = bechdel_train # dataframe
+  )</code></pre>
+<div id="logistic-regression" class="section level2">
+<h2>Logistic regression</h2>
+<pre class="r"><code>lr_fit %&gt;%
+  broom::tidy()</code></pre>
+<pre><code>## # A tibble: 3 × 5
+##   term        estimate std.error statistic  p.value
+##   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+## 1 (Intercept)   2.80     0.494        5.68 1.35e- 8
+## 2 metascore     0.0207   0.00536      3.86 1.13e- 4
+## 3 imdb_rating  -0.625    0.100       -6.24 4.36e-10</code></pre>
+<pre class="r"><code>lr_preds &lt;- lr_fit %&gt;%
+  augment(new_data = bechdel_train) %&gt;%
+  mutate(.pred_match = if_else(test == .pred_class, 1, 0))</code></pre>
+<div id="confusion-matrix" class="section level3">
+<h3>Confusion matrix</h3>
+<pre class="r"><code>lr_preds %&gt;% 
+  conf_mat(truth = test, estimate = .pred_class) %&gt;% 
+  autoplot(type = &quot;heatmap&quot;)</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+</div>
+</div>
+<div id="decision-tree" class="section level2">
+<h2>Decision Tree</h2>
+<pre class="r"><code>tree_preds &lt;- tree_fit %&gt;%
+  augment(new_data = bechdel) %&gt;%
+  mutate(.pred_match = if_else(test == .pred_class, 1, 0)) </code></pre>
+<pre class="r"><code>tree_preds %&gt;% 
+  conf_mat(truth = test, estimate = .pred_class) %&gt;% 
+  autoplot(type = &quot;heatmap&quot;)</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+</div>
+<div id="draw-the-decision-tree" class="section level2">
+<h2>Draw the decision tree</h2>
+<pre class="r"><code>draw_tree &lt;- 
+    rpart::rpart(
+        test ~ metascore + imdb_rating,
+        data = bechdel_train, # uses data that contains both birth weight and `low`
+        control = rpart::rpart.control(maxdepth = 5, cp = 0, minsplit = 10)
+    ) %&gt;% 
+    partykit::as.party()
+plot(draw_tree)</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+</div>
+</div>
+<div id="cross-validation" class="section level1">
+<h1>Cross Validation</h1>
+<p>Run the code below. What does it return?</p>
+<p>Use k-fold cross validation to build a set of 10 validation folds.</p>
+<pre class="r"><code>set.seed(123)
+bechdel_folds &lt;- vfold_cv(data = bechdel_train, 
+                          v = 10, 
+                          strata = test)
+bechdel_folds</code></pre>
+<pre><code>## #  10-fold cross-validation using stratification 
+## # A tibble: 10 × 2
+##    splits             id    
+##    &lt;list&gt;             &lt;chr&gt; 
+##  1 &lt;split [1002/112]&gt; Fold01
+##  2 &lt;split [1002/112]&gt; Fold02
+##  3 &lt;split [1002/112]&gt; Fold03
+##  4 &lt;split [1002/112]&gt; Fold04
+##  5 &lt;split [1002/112]&gt; Fold05
+##  6 &lt;split [1002/112]&gt; Fold06
+##  7 &lt;split [1002/112]&gt; Fold07
+##  8 &lt;split [1004/110]&gt; Fold08
+##  9 &lt;split [1004/110]&gt; Fold09
+## 10 &lt;split [1004/110]&gt; Fold10</code></pre>
+<div id="fit_resamples" class="section level2">
+<h2><code>fit_resamples()</code></h2>
+<p>Trains and tests a resampled model.</p>
+<pre class="r"><code>lr_fit &lt;- lr_mod %&gt;%
+  fit_resamples(
+    test ~ metascore + imdb_rating,
+    resamples = bechdel_folds
+  )
+
+
+tree_fit &lt;- tree_mod %&gt;%
+  fit_resamples(
+    test ~ metascore + imdb_rating,
+    resamples = bechdel_folds
+  )</code></pre>
+<pre><code>## Warning: package &#39;C50&#39; was built under R version 4.2.3</code></pre>
+</div>
+<div id="collect_metrics" class="section level2">
+<h2><code>collect_metrics()</code></h2>
+<p>Unnest the metrics column from a tidymodels <code>fit_resamples()</code></p>
+<pre class="r"><code>collect_metrics(lr_fit)</code></pre>
+<pre><code>## # A tibble: 2 × 6
+##   .metric  .estimator  mean     n std_err .config             
+##   &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy binary     0.575    10  0.0149 Preprocessor1_Model1
+## 2 roc_auc  binary     0.606    10  0.0189 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>collect_metrics(tree_fit)</code></pre>
+<pre><code>## # A tibble: 2 × 6
+##   .metric  .estimator  mean     n std_err .config             
+##   &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy binary     0.571    10  0.0156 Preprocessor1_Model1
+## 2 roc_auc  binary     0.547    10  0.0201 Preprocessor1_Model1</code></pre>
+<p>According to the results above, ROC of logistic regression model (0.61) is higher than that of the decision tree model (0.55). Therefore, the logistic regression model has better predictive power.</p>
+<p>The ROC plot for decision tree shows that the AUC is slightly bigger than half of the square, meaning that the decision tree model is a little bit better than random guessing, but not too much.</p>
+<pre class="r"><code>tree_preds &lt;- tree_mod %&gt;% 
+  fit_resamples(
+    test ~ metascore + imdb_rating, 
+    resamples = bechdel_folds,
+    control = control_resamples(save_pred = TRUE) #&lt;&lt;
+  )
+
+# What does the data for ROC look like?
+tree_preds %&gt;% 
+  collect_predictions() %&gt;% 
+  roc_curve(truth = test, .pred_Fail)  </code></pre>
+<pre><code>## # A tibble: 29 × 3
+##    .threshold specificity sensitivity
+##         &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+##  1   -Inf         0             1    
+##  2      0.262     0             1    
+##  3      0.317     0.00201       0.989
+##  4      0.373     0.00805       0.982
+##  5      0.440     0.0181        0.976
+##  6      0.459     0.0443        0.943
+##  7      0.460     0.0765        0.924
+##  8      0.464     0.115         0.901
+##  9      0.465     0.147         0.887
+## 10      0.465     0.191         0.864
+## # ℹ 19 more rows</code></pre>
+<pre class="r"><code># Draw the ROC
+tree_preds %&gt;% 
+  collect_predictions() %&gt;% 
+  roc_curve(truth = test, .pred_Fail) %&gt;% 
+  autoplot()</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+</div>
+</div>
+<div id="build-a-better-training-set-with-recipes" class="section level1">
+<h1>Build a better training set with <code>recipes</code></h1>
+<div id="preprocessing-options" class="section level2">
+<h2>Preprocessing options</h2>
+<ul>
+<li>Encode categorical predictors</li>
+<li>Center and scale variables</li>
+<li>Handle class imbalance</li>
+<li>Impute missing data</li>
+<li>Perform dimensionality reduction</li>
+<li>… …</li>
+</ul>
+</div>
+<div id="to-build-a-recipe" class="section level2">
+<h2>To build a recipe</h2>
+<ol style="list-style-type: decimal">
+<li>Start the <code>recipe()</code></li>
+<li>Define the variables involved</li>
+<li>Describe <strong>prep</strong>rocessing [step-by-step]</li>
+</ol>
+</div>
+<div id="collapse-some-categorical-levels" class="section level2">
+<h2>Collapse Some Categorical Levels</h2>
+<p>Do we have any <code>genre</code> with few observations? Assign genres that have less than 3% to a new category ‘Other’</p>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<pre class="r"><code>movie_rec &lt;-
+  recipe(test ~ .,
+         data = bechdel_train) %&gt;%
+  
+  # Genres with less than 3% will be in a catewgory &#39;Other&#39;
+    step_other(genre, threshold = .03) </code></pre>
+</div>
+<div id="before-recipe" class="section level2">
+<h2>Before recipe</h2>
+<pre><code>## # A tibble: 14 × 2
+##    genre           n
+##    &lt;chr&gt;       &lt;int&gt;
+##  1 Action        293
+##  2 Comedy        254
+##  3 Drama         213
+##  4 Adventure      75
+##  5 Animation      72
+##  6 Crime          68
+##  7 Horror         68
+##  8 Biography      50
+##  9 Mystery         7
+## 10 Fantasy         5
+## 11 Sci-Fi          3
+## 12 Thriller        3
+## 13 Documentary     2
+## 14 Musical         1</code></pre>
+</div>
+<div id="after-recipe" class="section level2">
+<h2>After recipe</h2>
+<pre class="r"><code>movie_rec %&gt;% 
+  prep() %&gt;% 
+  bake(new_data = bechdel_train) %&gt;% 
+  count(genre, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 9 × 2
+##   genre         n
+##   &lt;fct&gt;     &lt;int&gt;
+## 1 Action      293
+## 2 Comedy      254
+## 3 Drama       213
+## 4 Adventure    75
+## 5 Animation    72
+## 6 Crime        68
+## 7 Horror       68
+## 8 Biography    50
+## 9 other        21</code></pre>
+</div>
+<div id="step_dummy" class="section level2">
+<h2><code>step_dummy()</code></h2>
+<p>Converts nominal data into numeric dummy variables</p>
+<pre class="r"><code>movie_rec &lt;- recipe(test ~ ., data = bechdel) %&gt;%
+  step_other(genre, threshold = .03) %&gt;% 
+  step_dummy(all_nominal_predictors()) 
+
+movie_rec </code></pre>
+<pre><code>## </code></pre>
+<pre><code>## ── Recipe ──────────────────────────────────────────────────────────────────────</code></pre>
+<pre><code>## </code></pre>
+<pre><code>## ── Inputs</code></pre>
+<pre><code>## Number of variables by role</code></pre>
+<pre><code>## outcome:   1
+## predictor: 9</code></pre>
+<pre><code>## </code></pre>
+<pre><code>## ── Operations</code></pre>
+<pre><code>## • Collapsing factor levels for: genre</code></pre>
+<pre><code>## • Dummy variables from: all_nominal_predictors()</code></pre>
+</div>
+<div id="lets-think-about-the-modelling" class="section level2">
+<h2>Let’s think about the modelling</h2>
+<p>What if there were no films with <code>rated</code> NC-17 in the training data?</p>
+<ul>
+<li>Will the model have a coefficient for <code>rated</code> NC-17?</li>
+</ul>
+<p>No, it won’t have one since the category is not included in the training data.</p>
+<ul>
+<li>What will happen if the test data includes a film with <code>rated</code> NC-17?</li>
+</ul>
+<p>If the test data does include this category, the model fails to predict the value for a film with ‘rated’ NC-17.</p>
+<p>In general, the model learns patterns in data, and if there’s no pattern in a particular dataset, it fails to provide a precise prediction. If enough data is fed in each category, we wouldn’t have such problem.</p>
+<p>Step_novel can be used to address problems with categorical variables.</p>
+</div>
+<div id="step_novel" class="section level2">
+<h2><code>step_novel()</code></h2>
+<p>Adds a catch-all level to a factor for any new values not encountered in model training, which lets R intelligently predict new levels in the test set.</p>
+<pre class="r"><code>movie_rec &lt;- recipe(test ~ ., data = bechdel) %&gt;%
+  step_other(genre, threshold = .03) %&gt;% 
+  step_novel(all_nominal_predictors) %&gt;% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal_predictors()) </code></pre>
+</div>
+<div id="step_zv" class="section level2">
+<h2><code>step_zv()</code></h2>
+<p>Intelligently handles zero variance variables (variables that contain only a single value)</p>
+<pre class="r"><code>movie_rec &lt;- recipe(test ~ ., data = bechdel) %&gt;%
+  step_other(genre, threshold = .03) %&gt;% 
+  step_novel(all_nominal(), -all_outcomes()) %&gt;% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal(), -all_outcomes()) %&gt;% 
+  step_zv(all_numeric(), -all_outcomes()) </code></pre>
+</div>
+<div id="step_normalize" class="section level2">
+<h2><code>step_normalize()</code></h2>
+<p>Centers then scales numeric variable (mean = 0, sd = 1)</p>
+<pre class="r"><code>movie_rec &lt;- recipe(test ~ ., data = bechdel) %&gt;%
+  step_other(genre, threshold = .03) %&gt;% 
+  step_novel(all_nominal(), -all_outcomes()) %&gt;% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal(), -all_outcomes()) %&gt;% 
+  step_zv(all_numeric(), -all_outcomes())  %&gt;% 
+  step_normalize(all_numeric()) </code></pre>
+</div>
+<div id="step_corr" class="section level2">
+<h2><code>step_corr()</code></h2>
+<p>Removes highly correlated variables</p>
+<pre class="r"><code>movie_rec &lt;- recipe(test ~ ., data = bechdel) %&gt;%
+  step_other(genre, threshold = .03) %&gt;% 
+  step_novel(all_nominal(), -all_outcomes()) %&gt;% # Use *before* `step_dummy()` so new level is dummified
+  step_dummy(all_nominal(), -all_outcomes()) %&gt;% 
+  step_zv(all_numeric(), -all_outcomes())  %&gt;% 
+  step_normalize(all_numeric()) 
+#%&gt;% 
+  #step_corr(all_predictors(), threshold = 0.75, method = &quot;spearman&quot;) 
+
+
+
+movie_rec</code></pre>
+<pre><code>## </code></pre>
+<pre><code>## ── Recipe ──────────────────────────────────────────────────────────────────────</code></pre>
+<pre><code>## </code></pre>
+<pre><code>## ── Inputs</code></pre>
+<pre><code>## Number of variables by role</code></pre>
+<pre><code>## outcome:   1
+## predictor: 9</code></pre>
+<pre><code>## </code></pre>
+<pre><code>## ── Operations</code></pre>
+<pre><code>## • Collapsing factor levels for: genre</code></pre>
+<pre><code>## • Novel factor level assignment for: all_nominal(), -all_outcomes()</code></pre>
+<pre><code>## • Dummy variables from: all_nominal(), -all_outcomes()</code></pre>
+<pre><code>## • Zero variance filter on: all_numeric(), -all_outcomes()</code></pre>
+<pre><code>## • Centering and scaling for: all_numeric()</code></pre>
+</div>
+</div>
+<div id="define-different-models-to-fit" class="section level1">
+<h1>Define different models to fit</h1>
+<pre class="r"><code>## Model Building
+
+# 1. Pick a `model type`
+# 2. set the `engine`
+# 3. Set the `mode`: regression or classification
+
+# Logistic regression
+log_spec &lt;-  logistic_reg() %&gt;%  # model type
+  set_engine(engine = &quot;glm&quot;) %&gt;%  # model engine
+  set_mode(&quot;classification&quot;) # model mode
+
+# Show your model specification
+log_spec</code></pre>
+<pre><code>## Logistic Regression Model Specification (classification)
+## 
+## Computational engine: glm</code></pre>
+<pre class="r"><code># Decision Tree
+tree_spec &lt;- decision_tree() %&gt;%
+  set_engine(engine = &quot;C5.0&quot;) %&gt;%
+  set_mode(&quot;classification&quot;)
+
+tree_spec</code></pre>
+<pre><code>## Decision Tree Model Specification (classification)
+## 
+## Computational engine: C5.0</code></pre>
+<pre class="r"><code># Random Forest
+library(ranger)</code></pre>
+<pre><code>## Warning: package &#39;ranger&#39; was built under R version 4.2.3</code></pre>
+<pre class="r"><code>rf_spec &lt;- 
+  rand_forest() %&gt;% 
+  set_engine(&quot;ranger&quot;, importance = &quot;impurity&quot;) %&gt;% 
+  set_mode(&quot;classification&quot;)
+
+
+# Boosted tree (XGBoost)
+library(xgboost)</code></pre>
+<pre><code>## Warning: package &#39;xgboost&#39; was built under R version 4.2.3</code></pre>
+<pre><code>## 
+## Attaching package: &#39;xgboost&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     slice</code></pre>
+<pre class="r"><code>xgb_spec &lt;- 
+  boost_tree() %&gt;% 
+  set_engine(&quot;xgboost&quot;) %&gt;% 
+  set_mode(&quot;classification&quot;) 
+
+# K-nearest neighbour (k-NN)
+knn_spec &lt;- 
+  nearest_neighbor(neighbors = 4) %&gt;% # we can adjust the number of neighbors 
+  set_engine(&quot;kknn&quot;) %&gt;% 
+  set_mode(&quot;classification&quot;) </code></pre>
+</div>
+<div id="bundle-recipe-and-model-with-workflows" class="section level1">
+<h1>Bundle recipe and model with <code>workflows</code></h1>
+<pre class="r"><code>log_wflow &lt;- # new workflow object
+ workflow() %&gt;% # use workflow function
+ add_recipe(movie_rec) %&gt;%   # use the new recipe
+ add_model(log_spec)   # add your model spec
+
+# show object
+log_wflow</code></pre>
+<pre><code>## ══ Workflow ════════════════════════════════════════════════════════════════════
+## Preprocessor: Recipe
+## Model: logistic_reg()
+## 
+## ── Preprocessor ────────────────────────────────────────────────────────────────
+## 5 Recipe Steps
+## 
+## • step_other()
+## • step_novel()
+## • step_dummy()
+## • step_zv()
+## • step_normalize()
+## 
+## ── Model ───────────────────────────────────────────────────────────────────────
+## Logistic Regression Model Specification (classification)
+## 
+## Computational engine: glm</code></pre>
+<pre class="r"><code>## A few more workflows
+
+tree_wflow &lt;-
+ workflow() %&gt;%
+ add_recipe(movie_rec) %&gt;% 
+ add_model(tree_spec) 
+
+rf_wflow &lt;-
+ workflow() %&gt;%
+ add_recipe(movie_rec) %&gt;% 
+ add_model(rf_spec) 
+
+xgb_wflow &lt;-
+ workflow() %&gt;%
+ add_recipe(movie_rec) %&gt;% 
+ add_model(xgb_spec)
+
+knn_wflow &lt;-
+ workflow() %&gt;%
+ add_recipe(movie_rec) %&gt;% 
+ add_model(knn_spec)</code></pre>
+<p>HEADS UP</p>
+<ol style="list-style-type: decimal">
+<li>How many models have you specified?</li>
+</ol>
+<p>There are 5 models:
+1) Logistic regression: log_spec
+2) Decision Tree: tree_spec
+3) Random Forest: rf_spec
+4) Boosted tree: xgb_spec
+5) K-nearest neighbour: knn_spec</p>
+<ol start="2" style="list-style-type: decimal">
+<li>What’s the difference between a model specification and a workflow?</li>
+</ol>
+<p>A model specification is creating a certain model object that can be applied to a dataset later to predict the value of a dependent variable.</p>
+<p>A workflow is an object that bundles different processes including data-preprocessing and modelling. It puts toghter the recipe and the model, making the process more efficient.</p>
+<ol start="3" style="list-style-type: decimal">
+<li>Do you need to add a formula (e.g., <code>test ~ .</code>) if you have a recipe?</li>
+</ol>
+<p>A formula because needs to be specified within the recipe() function. For example, in <code>test ~ .</code>, test is the model outcome and . means all other variables are predictors.</p>
+</div>
+<div id="model-comparison" class="section level1">
+<h1>Model Comparison</h1>
+<p>You now have all your models. Adapt the code from slides <code>code-from-slides-CA-housing.R</code>, line 400 onwards to assess which model gives you the best classification.</p>
+<pre class="r"><code>#Logistic regression results
+log_res &lt;- log_wflow %&gt;% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, accuracy,
+      kap, roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)) </code></pre>
+<pre><code>## → A | warning: glm.fit: algorithm did not converge</code></pre>
+<pre><code>## 
+There were issues with some computations   A: x1
+
+                                                 
+→ B | warning: prediction from a rank-deficient fit may be misleading
+## There were issues with some computations   A: x1
+
+There were issues with some computations   A: x1   B: x1
+
+There were issues with some computations   A: x2   B: x1
+
+There were issues with some computations   A: x2   B: x2
+
+There were issues with some computations   A: x3   B: x2
+
+There were issues with some computations   A: x3   B: x3
+
+There were issues with some computations   A: x4   B: x3
+
+There were issues with some computations   A: x4   B: x4
+
+There were issues with some computations   A: x5   B: x4
+
+There were issues with some computations   A: x5   B: x5
+
+There were issues with some computations   A: x6   B: x5
+
+There were issues with some computations   A: x6   B: x6
+
+There were issues with some computations   A: x7   B: x6
+
+There were issues with some computations   A: x7   B: x7
+
+There were issues with some computations   A: x8   B: x7
+
+There were issues with some computations   A: x8   B: x8
+
+There were issues with some computations   A: x9   B: x8
+
+There were issues with some computations   A: x9   B: x9
+
+There were issues with some computations   A: x10   B: x9
+
+There were issues with some computations   A: x10   B: x10
+
+There were issues with some computations   A: x10   B: x10</code></pre>
+<pre class="r"><code># Show average performance over all folds (note that we use log_res):
+log_res %&gt;%  collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   .metric   .estimator    mean     n std_err .config             
+##   &lt;chr&gt;     &lt;chr&gt;        &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary      0.478     10  0.0184 Preprocessor1_Model1
+## 2 f_meas    binary      0.491     10  0.0285 Preprocessor1_Model1
+## 3 kap       binary     -0.0420    10  0.0356 Preprocessor1_Model1
+## 4 precision binary      0.531     10  0.0221 Preprocessor1_Model1
+## 5 recall    binary      0.469     10  0.0413 Preprocessor1_Model1
+## 6 roc_auc   binary      0.473     10  0.0189 Preprocessor1_Model1
+## 7 sens      binary      0.469     10  0.0413 Preprocessor1_Model1
+## 8 spec      binary      0.489     10  0.0435 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>#Decision Tree results
+
+tree_res &lt;-
+  tree_wflow %&gt;% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+tree_res %&gt;%  collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   .metric   .estimator  mean     n std_err .config             
+##   &lt;chr&gt;     &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary     0.590    10  0.0131 Preprocessor1_Model1
+## 2 f_meas    binary     0.632    10  0.0126 Preprocessor1_Model1
+## 3 kap       binary     0.168    10  0.0276 Preprocessor1_Model1
+## 4 precision binary     0.629    10  0.0125 Preprocessor1_Model1
+## 5 recall    binary     0.637    10  0.0194 Preprocessor1_Model1
+## 6 roc_auc   binary     0.591    10  0.0181 Preprocessor1_Model1
+## 7 sens      binary     0.637    10  0.0194 Preprocessor1_Model1
+## 8 spec      binary     0.530    10  0.0283 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>#Random Forest
+
+rf_res &lt;-
+  rf_wflow %&gt;% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+rf_res %&gt;%  collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   .metric   .estimator  mean     n std_err .config             
+##   &lt;chr&gt;     &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary     0.641    10  0.0141 Preprocessor1_Model1
+## 2 f_meas    binary     0.706    10  0.0112 Preprocessor1_Model1
+## 3 kap       binary     0.255    10  0.0296 Preprocessor1_Model1
+## 4 precision binary     0.647    10  0.0116 Preprocessor1_Model1
+## 5 recall    binary     0.778    10  0.0135 Preprocessor1_Model1
+## 6 roc_auc   binary     0.663    10  0.0225 Preprocessor1_Model1
+## 7 sens      binary     0.778    10  0.0135 Preprocessor1_Model1
+## 8 spec      binary     0.471    10  0.0215 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>#Boosted tree - XGBoost
+
+xgb_res &lt;- 
+  xgb_wflow %&gt;% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) 
+
+xgb_res %&gt;% collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   .metric   .estimator  mean     n std_err .config             
+##   &lt;chr&gt;     &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary     0.634    10  0.0126 Preprocessor1_Model1
+## 2 f_meas    binary     0.683    10  0.0105 Preprocessor1_Model1
+## 3 kap       binary     0.252    10  0.0270 Preprocessor1_Model1
+## 4 precision binary     0.660    10  0.0136 Preprocessor1_Model1
+## 5 recall    binary     0.712    10  0.0171 Preprocessor1_Model1
+## 6 roc_auc   binary     0.645    10  0.0169 Preprocessor1_Model1
+## 7 sens      binary     0.712    10  0.0171 Preprocessor1_Model1
+## 8 spec      binary     0.539    10  0.0295 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>#K-nearest neighbour
+
+knn_res &lt;- 
+  knn_wflow %&gt;% 
+  fit_resamples(
+    resamples = bechdel_folds, 
+    metrics = metric_set(
+      recall, precision, f_meas, 
+      accuracy, kap,
+      roc_auc, sens, spec),
+    control = control_resamples(save_pred = TRUE)
+    ) </code></pre>
+<pre><code>## Warning: package &#39;kknn&#39; was built under R version 4.2.3</code></pre>
+<pre><code>## → A | warning: While computing binary `precision()`, no predicted events were detected (i.e. `true_positive + false_positive = 0`). 
+##                Precision is undefined in this case, and `NA` will be returned.
+##                Note that 61 true event(s) actually occured for the problematic event level, &#39;Fail&#39;.</code></pre>
+<pre><code>## 
+There were issues with some computations   A: x1
+
+There were issues with some computations   A: x1</code></pre>
+<pre class="r"><code>knn_res %&gt;% collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   .metric   .estimator     mean     n std_err .config             
+##   &lt;chr&gt;     &lt;chr&gt;         &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary     0.543       10 0.0110  Preprocessor1_Model1
+## 2 f_meas    binary     0.712        9 0.00136 Preprocessor1_Model1
+## 3 kap       binary     0.000823    10 0.00424 Preprocessor1_Model1
+## 4 precision binary     0.554        9 0.00102 Preprocessor1_Model1
+## 5 recall    binary     0.897       10 0.0997  Preprocessor1_Model1
+## 6 roc_auc   binary     0.548       10 0.0231  Preprocessor1_Model1
+## 7 sens      binary     0.897       10 0.0997  Preprocessor1_Model1
+## 8 spec      binary     0.104       10 0.0996  Preprocessor1_Model1</code></pre>
+<pre class="r"><code># Model Comparison
+
+log_metrics &lt;- 
+  log_res %&gt;% 
+  collect_metrics(summarise = TRUE) %&gt;%
+  # add the name of the model to every row
+  mutate(model = &quot;Logistic Regression&quot;) 
+
+tree_metrics &lt;- 
+  tree_res %&gt;% 
+  collect_metrics(summarise = TRUE) %&gt;%
+  mutate(model = &quot;Decision Tree&quot;)
+
+rf_metrics &lt;- 
+  rf_res %&gt;% 
+  collect_metrics(summarise = TRUE) %&gt;%
+  mutate(model = &quot;Random Forest&quot;)
+
+xgb_metrics &lt;- 
+  xgb_res %&gt;% 
+  collect_metrics(summarise = TRUE) %&gt;%
+  mutate(model = &quot;XGBoost&quot;)
+
+knn_metrics &lt;- 
+  knn_res %&gt;% 
+  collect_metrics(summarise = TRUE) %&gt;%
+  mutate(model = &quot;Knn&quot;)
+
+# create dataframe with all models
+model_compare &lt;- bind_rows(log_metrics,
+                           tree_metrics,
+                           rf_metrics,
+                           xgb_metrics,
+                           knn_metrics) 
+
+#Pivot wider to create barplot
+  model_comp &lt;- model_compare %&gt;% 
+  select(model, .metric, mean, std_err) %&gt;% 
+  pivot_wider(names_from = .metric, values_from = c(mean, std_err)) 
+
+# show mean are under the curve (ROC-AUC) for every model
+model_comp %&gt;% 
+  arrange(mean_roc_auc) %&gt;% 
+  mutate(model = fct_reorder(model, mean_roc_auc)) %&gt;% # order results
+  ggplot(aes(model, mean_roc_auc, fill=model)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = &quot;Blues&quot;) +
+   geom_text(
+     size = 3,
+     aes(label = round(mean_roc_auc, 2), 
+         y = mean_roc_auc + 0.08),
+     vjust = 1
+  )+
+  theme_light()+
+  theme(legend.position = &quot;none&quot;)+
+  labs(y = NULL)</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-37-1.png" width="672" /></p>
+<p>From the plot above, we can tell that Random Forest model has the highest ROC_AUC. We then choose it as the best model to do the last_fit() on test dataset.</p>
+<pre class="r"><code>last_fit_rf &lt;- last_fit(rf_wflow, 
+                        split = data_split,
+                        metrics = metric_set(
+                          accuracy, f_meas, kap, precision,
+                          recall, roc_auc, sens, spec))
+
+last_fit_rf %&gt;% collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 4
+##   .metric   .estimator .estimate .config             
+##   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary         0.582 Preprocessor1_Model1
+## 2 f_meas    binary         0.667 Preprocessor1_Model1
+## 3 kap       binary         0.127 Preprocessor1_Model1
+## 4 precision binary         0.597 Preprocessor1_Model1
+## 5 recall    binary         0.755 Preprocessor1_Model1
+## 6 sens      binary         0.755 Preprocessor1_Model1
+## 7 spec      binary         0.368 Preprocessor1_Model1
+## 8 roc_auc   binary         0.622 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>#Compare to training
+rf_res %&gt;% collect_metrics(summarize = TRUE)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   .metric   .estimator  mean     n std_err .config             
+##   &lt;chr&gt;     &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy  binary     0.641    10  0.0141 Preprocessor1_Model1
+## 2 f_meas    binary     0.706    10  0.0112 Preprocessor1_Model1
+## 3 kap       binary     0.255    10  0.0296 Preprocessor1_Model1
+## 4 precision binary     0.647    10  0.0116 Preprocessor1_Model1
+## 5 recall    binary     0.778    10  0.0135 Preprocessor1_Model1
+## 6 roc_auc   binary     0.663    10  0.0225 Preprocessor1_Model1
+## 7 sens      binary     0.778    10  0.0135 Preprocessor1_Model1
+## 8 spec      binary     0.471    10  0.0215 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>#Variable importance using `{vip}` package
+
+library(vip)
+
+last_fit_rf %&gt;% 
+  pluck(&quot;.workflow&quot;, 1) %&gt;%   
+  pull_workflow_fit() %&gt;% 
+  vip(num_features = 10) +
+  theme_light()</code></pre>
+<pre><code>## Warning: `pull_workflow_fit()` was deprecated in workflows 0.2.3.
+## ℹ Please use `extract_fit_parsnip()` instead.
+## This warning is displayed once every 8 hours.
+## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+## generated.</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-38-1.png" width="672" /></p>
+<pre class="r"><code># Final Confusion Matrix
+
+last_fit_rf %&gt;%
+  collect_predictions() %&gt;% 
+  conf_mat(test, .pred_class) %&gt;% 
+  autoplot(type = &quot;heatmap&quot;)</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-38-2.png" width="672" /></p>
+<pre class="r"><code># Final ROC curve
+last_fit_rf %&gt;% 
+  collect_predictions() %&gt;% 
+  roc_curve(test, .pred_Fail) %&gt;% 
+  autoplot()</code></pre>
+<p><img src="/blogs/movie_files/figure-html/unnamed-chunk-38-3.png" width="672" /></p>
+<p>From the final model, we can tell that using random forest, the most important factors affecting the Bechdel test results are: film budget, IMDB rating and domestic gross box revenue.</p>
+</div>

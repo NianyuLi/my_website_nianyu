@@ -1,0 +1,123 @@
+---
+title: "energy"
+author: "Nianyu Li"
+date: "June 2023"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+---
+
+
+
+<hr />
+<div id="a-stacked-area-chart-that-shows-how-china-generated-its-electricity-since-2000." class="section level1">
+<h1>A stacked area chart that shows how China generated its electricity since 2000.</h1>
+<pre class="r"><code># Download electricity data
+url &lt;- &quot;https://nyc3.digitaloceanspaces.com/owid-public/data/energy/owid-energy-data.csv&quot;
+
+energy &lt;- read_csv(url) %&gt;% 
+  filter(year &gt;= 1990) %&gt;% 
+  drop_na(iso_code) %&gt;% 
+  select(1:3,
+         biofuel = biofuel_electricity,
+         coal = coal_electricity,
+         gas = gas_electricity,
+         hydro = hydro_electricity,
+         nuclear = nuclear_electricity,
+         oil = oil_electricity,
+         other_renewable = other_renewable_exc_biofuel_electricity,
+         solar = solar_electricity,
+         wind = wind_electricity, 
+         electricity_demand,
+         electricity_generation,
+         net_elec_imports,	# Net electricity imports, measured in terawatt-hours
+         energy_per_capita,	# Primary energy consumption per capita, measured in kilowatt-hours	Calculated by Our World in Data based on BP Statistical Review of World Energy and EIA International Energy Data
+         energy_per_gdp,	# Energy consumption per unit of GDP. This is measured in kilowatt-hours per 2011 international-$.
+         per_capita_electricity, #	Electricity generation per capita, measured in kilowatt-hours
+  ) 
+
+# Download data for C02 emissions per capita https://data.worldbank.org/indicator/EN.ATM.CO2E.PC
+co2_percap &lt;- wb_data(country = &quot;countries_only&quot;, 
+                      indicator = &quot;EN.ATM.CO2E.PC&quot;, 
+                      start_date = 1990, 
+                      end_date = 2022,
+                      return_wide=FALSE) %&gt;% 
+  filter(!is.na(value)) %&gt;% 
+  #drop unwanted variables
+  select(-c(unit, obs_status, footnote, last_updated)) %&gt;% 
+  rename(year = date,
+         co2percap = value)
+
+
+# Download data for GDP per capita  https://data.worldbank.org/indicator/NY.GDP.PCAP.PP.KD
+gdp_percap &lt;- wb_data(country = &quot;countries_only&quot;, 
+                      indicator = &quot;NY.GDP.PCAP.PP.KD&quot;, 
+                      start_date = 1990, 
+                      end_date = 2022,
+                      return_wide=FALSE) %&gt;% 
+  filter(!is.na(value)) %&gt;% 
+  #drop unwanted variables
+  select(-c(unit, obs_status, footnote, last_updated)) %&gt;% 
+  rename(year = date,
+         GDPpercap = value)</code></pre>
+<pre class="r"><code>energy_china &lt;- energy %&gt;% 
+  
+  #Filter data for China
+  filter(country == &quot;China&quot;) %&gt;% 
+  
+  #select lines we need
+  select(year, 
+         biofuel, coal, gas, 
+         hydro, nuclear, oil,
+         other_renewable, solar, wind) %&gt;% 
+  
+  #transform the table in to long format
+  pivot_longer(cols = c(&quot;biofuel&quot;, &quot;coal&quot;, &quot;gas&quot;, 
+         &quot;hydro&quot;, &quot;nuclear&quot;, &quot;oil&quot;,
+         &quot;other_renewable&quot;, &quot;solar&quot;, &quot;wind&quot;),
+         names_to=&quot;energy_type&quot;,
+         values_to = &quot;energy_usage&quot;)
+
+print(energy_china)</code></pre>
+<pre><code>## # A tibble: 288 × 3
+##     year energy_type     energy_usage
+##    &lt;dbl&gt; &lt;chr&gt;                  &lt;dbl&gt;
+##  1  1990 biofuel               NA    
+##  2  1990 coal                 441.   
+##  3  1990 gas                    2.77 
+##  4  1990 hydro                127.   
+##  5  1990 nuclear                0    
+##  6  1990 oil                   50.4  
+##  7  1990 other_renewable       NA    
+##  8  1990 solar                  0.002
+##  9  1990 wind                   0.002
+## 10  1991 biofuel               NA    
+## # ℹ 278 more rows</code></pre>
+<pre class="r"><code>#Create the stacked area chart
+energy_china %&gt;% 
+  
+  ggplot()+
+  
+  aes(x = year,
+      y = energy_usage,
+      fill = energy_type)+
+  
+  geom_area(alpha = 0.5, position = &quot;fill&quot;)+
+  
+  scale_fill_brewer(palette = &quot;YlGnBu&quot;)+
+  
+  labs(title = &quot;Source of energy over time: China, 1990-2023&quot;,
+       X = &quot;year&quot;,
+       y = &quot;proportion&quot;,
+       fill = &quot;Energy Type&quot;)</code></pre>
+<p><img src="/blogs/energy_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+</div>

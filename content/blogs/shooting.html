@@ -1,0 +1,519 @@
+---
+title: "Massive Shooting"
+author: "Nianyu Li"
+date: "June 2023"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+---
+
+
+
+<hr />
+<div id="mass-shootings-in-the-us" class="section level1">
+<h1>Mass shootings in the US</h1>
+<p>In July 2012, in the aftermath of a mass shooting in a movie theater in Aurora, Colorado, <a href="https://www.motherjones.com/politics/2012/07/mass-shootings-map/">Mother Jones</a> published a report on mass shootings in the United States since 1982. Importantly, they provided the underlying data set as <a href="https://www.motherjones.com/politics/2012/12/mass-shootings-mother-jones-full-data/">an open-source database</a> for anyone interested in studying and understanding this criminal behavior.</p>
+<div id="obtain-the-data" class="section level2">
+<h2>Obtain the data</h2>
+<pre><code>## Rows: 125
+## Columns: 14
+## $ case                 &lt;chr&gt; &quot;Oxford High School shooting&quot;, &quot;San Jose VTA shoo…
+## $ year                 &lt;dbl&gt; 2021, 2021, 2021, 2021, 2021, 2021, 2020, 2020, 2…
+## $ month                &lt;chr&gt; &quot;Nov&quot;, &quot;May&quot;, &quot;Apr&quot;, &quot;Mar&quot;, &quot;Mar&quot;, &quot;Mar&quot;, &quot;Mar&quot;, …
+## $ day                  &lt;dbl&gt; 30, 26, 15, 31, 22, 16, 16, 26, 10, 6, 31, 4, 3, …
+## $ location             &lt;chr&gt; &quot;Oxford, Michigan&quot;, &quot;San Jose, California&quot;, &quot;Indi…
+## $ summary              &lt;chr&gt; &quot;Ethan Crumbley, a 15-year-old student at Oxford …
+## $ fatalities           &lt;dbl&gt; 4, 9, 8, 4, 10, 8, 4, 5, 4, 3, 7, 9, 22, 3, 12, 5…
+## $ injured              &lt;dbl&gt; 7, 0, 7, 1, 0, 1, 0, 0, 3, 8, 25, 27, 26, 12, 4, …
+## $ total_victims        &lt;dbl&gt; 11, 9, 15, 5, 10, 9, 4, 5, 7, 11, 32, 36, 48, 15,…
+## $ location_type        &lt;chr&gt; &quot;School&quot;, &quot;Workplace&quot;, &quot;Workplace&quot;, &quot;Workplace&quot;, …
+## $ male                 &lt;lgl&gt; TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, T…
+## $ age_of_shooter       &lt;dbl&gt; 15, 57, 19, NA, 21, 21, 31, 51, NA, NA, 36, 24, 2…
+## $ race                 &lt;chr&gt; NA, NA, &quot;White&quot;, NA, NA, &quot;White&quot;, NA, &quot;Black&quot;, &quot;B…
+## $ prior_mental_illness &lt;chr&gt; NA, &quot;Yes&quot;, &quot;Yes&quot;, NA, &quot;Yes&quot;, NA, NA, NA, NA, NA, …</code></pre>
+<table>
+<colgroup>
+<col width="37%" />
+<col width="62%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>column(variable)</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>case</td>
+<td>short name of incident</td>
+</tr>
+<tr class="even">
+<td>year, month, day</td>
+<td>year, month, day in which the shooting occurred</td>
+</tr>
+<tr class="odd">
+<td>location</td>
+<td>city and state where the shooting occcurred</td>
+</tr>
+<tr class="even">
+<td>summary</td>
+<td>brief description of the incident</td>
+</tr>
+<tr class="odd">
+<td>fatalities</td>
+<td>Number of fatalities in the incident, excluding the shooter</td>
+</tr>
+<tr class="even">
+<td>injured</td>
+<td>Number of injured, non-fatal victims in the incident, excluding the shooter</td>
+</tr>
+<tr class="odd">
+<td>total_victims</td>
+<td>number of total victims in the incident, excluding the shooter</td>
+</tr>
+<tr class="even">
+<td>location_type</td>
+<td>generic location in which the shooting took place</td>
+</tr>
+<tr class="odd">
+<td>male</td>
+<td>logical value, indicating whether the shooter was male</td>
+</tr>
+<tr class="even">
+<td>age_of_shooter</td>
+<td>age of the shooter when the incident occured</td>
+</tr>
+<tr class="odd">
+<td>race</td>
+<td>race of the shooter</td>
+</tr>
+<tr class="even">
+<td>prior_mental_illness</td>
+<td>did the shooter show evidence of mental illness prior to the incident?</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="explore-the-data" class="section level2">
+<h2>Explore the data</h2>
+<div id="specific-questions" class="section level3">
+<h3>Specific questions</h3>
+<ul>
+<li>Generate a data frame that summarizes the number of mass shootings per year.</li>
+</ul>
+<pre class="r"><code>mass_shootings %&gt;% 
+  group_by(year) %&gt;% 
+  summarize(count = n())</code></pre>
+<pre><code>## # A tibble: 37 × 2
+##     year count
+##    &lt;dbl&gt; &lt;int&gt;
+##  1  1982     1
+##  2  1984     2
+##  3  1986     1
+##  4  1987     1
+##  5  1988     1
+##  6  1989     2
+##  7  1990     1
+##  8  1991     3
+##  9  1992     2
+## 10  1993     4
+## # ℹ 27 more rows</code></pre>
+<ul>
+<li>Generate a bar chart that identifies the number of mass shooters associated with each race category. The bars should be sorted from highest to lowest and each bar should show its number.</li>
+</ul>
+<pre class="r"><code>#Create a table that shows the number of shooters in each race category
+shooters_race &lt;- mass_shootings %&gt;%
+  #Remove the NA in race
+  filter(!is.na(race)) %&gt;% 
+  group_by(race) %&gt;% 
+  summarize(count = n())
+
+print(shooters_race)</code></pre>
+<pre><code>## # A tibble: 6 × 2
+##   race            count
+##   &lt;chr&gt;           &lt;int&gt;
+## 1 Asian               8
+## 2 Black              21
+## 3 Latino             10
+## 4 Native American     3
+## 5 Other               5
+## 6 White              67</code></pre>
+<pre class="r"><code>#Plot the table above.
+shooters_race %&gt;% 
+  
+  #sort the bars from highest to lowest
+  mutate(race = fct_reorder(race, count)) %&gt;% 
+  
+  ggplot()+
+  
+  aes(x = count,
+      y = race) +
+  
+  geom_col(fill = &quot;#001E62&quot;) +
+  
+  #add labels to show # of shooters on each bar
+  geom_text(aes(label = count),
+                hjust = 1,
+                color = &quot;#FFFFFF&quot;,
+                size = 5) +
+  
+  #add titles
+  labs(title = &quot;Which race is associated with most shooters&quot;,
+       subtitle = &quot;Number of shooters in each race&quot;,
+       x = &quot;Number of shooter&quot;,
+       y = NULL) +
+  
+  theme_void() +
+  #adjust the positions and sizes
+  theme(plot.title.position = &quot;plot&quot;,
+        axis.text = element_text(size=12),
+        plot.title = element_text(size=18))+
+  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<ul>
+<li>Generate a boxplot visualizing the number of total victims, by type of location.</li>
+</ul>
+<pre class="r"><code>#Create a table that shows the number of total victims in each case by type of location
+victims_location_type &lt;- 
+  mass_shootings %&gt;%
+  select(location_type,
+         total_victims)
+
+print(victims_location_type)</code></pre>
+<pre><code>## # A tibble: 125 × 2
+##    location_type total_victims
+##    &lt;chr&gt;                 &lt;dbl&gt;
+##  1 School                   11
+##  2 Workplace                 9
+##  3 Workplace                15
+##  4 Workplace                 5
+##  5 Workplace                10
+##  6 Workplace                 9
+##  7 Workplace                 4
+##  8 Workplace                 5
+##  9 Other                     7
+## 10 Military                 11
+## # ℹ 115 more rows</code></pre>
+<pre class="r"><code>#Note that 95% of the data is below 44:
+quantile(mass_shootings$total_victims, probs = .95)</code></pre>
+<pre><code>## 95% 
+##  44</code></pre>
+<pre class="r"><code>#Plot the table above in a box plot
+victims_location_type %&gt;% 
+  
+  ggplot()+
+  
+  aes(x = location_type,
+      y = total_victims)+
+  
+  #Create the box plot and remove outliers
+  geom_boxplot()+
+  scale_y_continuous(limits = c(0,50))+
+  
+  #add titles
+  labs(title = &quot;Which type of location had the most victims&quot;,
+       subtitle = &quot;total victims in each case by type of location&quot;,
+       x = &quot;Location Type&quot;,
+       y = &quot;Total Victims&quot;,
+       caption = &quot;Note: 4 extreme values removed:
+       Other: 604, 102, 82; School: 55&quot;) +
+  
+  theme_light()+
+                  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<ul>
+<li>Redraw the same plot, but remove the Las Vegas Strip massacre from the dataset.</li>
+</ul>
+<p>It can be done using the method in the question above, i.e.setting a limit on y axis. We can also filter out the outlier in the first place.</p>
+<pre class="r"><code>victims_location_type_1 &lt;- 
+  mass_shootings %&gt;%
+  select(location_type,
+         total_victims) %&gt;% 
+  filter(total_victims!=604)
+
+print(victims_location_type_1)</code></pre>
+<pre><code>## # A tibble: 124 × 2
+##    location_type total_victims
+##    &lt;chr&gt;                 &lt;dbl&gt;
+##  1 School                   11
+##  2 Workplace                 9
+##  3 Workplace                15
+##  4 Workplace                 5
+##  5 Workplace                10
+##  6 Workplace                 9
+##  7 Workplace                 4
+##  8 Workplace                 5
+##  9 Other                     7
+## 10 Military                 11
+## # ℹ 114 more rows</code></pre>
+<pre class="r"><code>#Plot the table above in a box plot
+victims_location_type_1 %&gt;% 
+  
+  ggplot()+
+  
+  aes(x = location_type,
+      y = total_victims)+
+  
+  geom_boxplot()+
+  
+  #add titles
+  labs(title = &quot;Which type of location had the most victims&quot;,
+       subtitle = &quot;total victims in each case by type of location&quot;,
+       x = &quot;Location Type&quot;,
+       y = &quot;Total Victims&quot;,
+       caption = &quot;Note: 1 extreme values removed:
+       Other: 604 in Las Vegas Strip massacre&quot;) +
+  
+  theme_light()+
+                  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+</div>
+<div id="more-open-ended-questions" class="section level3">
+<h3>More open-ended questions</h3>
+<p>Address the following questions. Generate appropriate figures/tables to support your conclusions.</p>
+<ul>
+<li>How many white males with prior signs of mental illness initiated a mass shooting after 2000?</li>
+</ul>
+<pre class="r"><code>#Filter out the data using the criteria above
+mass_shootings %&gt;% 
+  filter(race == &quot;White&quot;,
+         male == TRUE,
+         prior_mental_illness == &quot;Yes&quot;,
+         year &gt; 2000) %&gt;% 
+  count()</code></pre>
+<pre><code>## # A tibble: 1 × 1
+##       n
+##   &lt;int&gt;
+## 1    22</code></pre>
+<pre class="r"><code>#Filtered data shows that there are 22 of them.</code></pre>
+<ul>
+<li>Which month of the year has the most mass shootings? Generate a bar chart sorted in chronological (natural) order (Jan-Feb-Mar- etc) to provide evidence of your answer.</li>
+</ul>
+<p>Feburary has the most mass shootings. See bar chart below.</p>
+<pre class="r"><code>#Create a table to show mass shootings in each month of the year
+shootings_by_month &lt;- 
+  mass_shootings %&gt;%
+  
+  #convert month to a factor
+  mutate(month = factor(month, levels = month.abb)) %&gt;% 
+  
+  #group by month and count # of shootings in each month
+  group_by(month) %&gt;% 
+  summarise(number = n())
+
+print(shootings_by_month)</code></pre>
+<pre><code>## # A tibble: 12 × 2
+##    month number
+##    &lt;fct&gt;  &lt;int&gt;
+##  1 Jan        7
+##  2 Feb       13
+##  3 Mar       12
+##  4 Apr       11
+##  5 May        8
+##  6 Jun       12
+##  7 Jul       10
+##  8 Aug        8
+##  9 Sep       10
+## 10 Oct       11
+## 11 Nov       12
+## 12 Dec       11</code></pre>
+<pre class="r"><code>#Plot the table
+
+shootings_by_month %&gt;% 
+  
+  ggplot()+
+  
+  aes(x = month,
+      y = number)+
+  
+  geom_bar(stat = &quot;identity&quot;,
+           fill = &quot;#001E62&quot;)+
+  
+  #add titles
+  labs(title = &quot;Which month did most shootings happened&quot;,
+       subtitle = &quot;Number of shootings in each month&quot;,
+       x = &quot;Month&quot;,
+       y = &quot;Number of shootings&quot;)+
+  
+  theme_classic()+
+  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<ul>
+<li>How does the distribution of mass shooting fatalities differ between White and Black shooters? What about White and Latino shooters?</li>
+</ul>
+<p>Black and white shooter: in most cases, fatalities caused by black shooters are smaller than that of white shooters. As the density plot indicates, fatalities by black shooters are concentrated on the left hand side of fatalities by white shooters. In the white shooters case, the density plot has a longer tail, which means fatalities are more disperse.</p>
+<p>White and Latino shooters: in most cases, fatalities caused by latino shooters are also smaller than that of white shooters. They are also more concentrated on the left side of the plot, compared to that caused by white shooters.</p>
+<p>See density plot below.</p>
+<pre class="r"><code>#Create a table to show shootings fatalities by shooters race
+fatalities_race &lt;- 
+  mass_shootings %&gt;%
+  #filter out data that is not NA in race
+  filter(!is.na(race)) %&gt;%
+  select(fatalities, race)
+
+print(fatalities_race)</code></pre>
+<pre><code>## # A tibble: 114 × 2
+##    fatalities race 
+##         &lt;dbl&gt; &lt;chr&gt;
+##  1          8 White
+##  2          8 White
+##  3          5 Black
+##  4          4 Black
+##  5          7 White
+##  6          9 White
+##  7         22 White
+##  8         12 Black
+##  9          5 Black
+## 10          3 White
+## # ℹ 104 more rows</code></pre>
+<pre class="r"><code>#Plot the distribution of fatalities, using geom_density
+fatalities_race %&gt;%  
+  
+  ggplot()+
+  
+  aes(x = fatalities,
+      fill = race)+
+  
+  geom_density(color = NA,alpha = 0.5)+
+  
+  scale_x_continuous(breaks = seq(0,60,5))+
+  
+  theme_classic()+
+  
+  #add titles
+  labs(title = &quot;How do fatalities differ among shooters from different races&quot;,
+       subtitle = &quot;Distribution of fatalities associated with shooter in each race&quot;,
+       x = &quot;Fatalities&quot;,
+       y = NULL)+
+  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+</div>
+<div id="very-open-ended" class="section level3">
+<h3>Very open-ended</h3>
+<ul>
+<li>Are mass shootings with shooters suffering from mental illness different from mass shootings with no signs of mental illness in the shooter?</li>
+</ul>
+<p>Shootings were more likely to be conducted by shooters with mental illness. Location types are also different. Shooters with mental illness have a wider choices of locations and they can shoot in public spaces like airports and religious places.</p>
+<p>See pie chart below for percentages of type of locations for shooters with and without mental illness.</p>
+<pre class="r"><code>#Create a table to show percent of type of locations for the two type of shooters.
+shooters_mental_location &lt;- 
+  mass_shootings %&gt;% 
+  #filter out NAs
+  filter(!is.na(prior_mental_illness)) %&gt;% 
+  group_by(prior_mental_illness,
+           location_type) %&gt;% 
+  summarize(count = n())</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;prior_mental_illness&#39;. You can override
+## using the `.groups` argument.</code></pre>
+<pre class="r"><code>print(shooters_mental_location)</code></pre>
+<pre><code>## # A tibble: 9 × 3
+## # Groups:   prior_mental_illness [2]
+##   prior_mental_illness location_type count
+##   &lt;chr&gt;                &lt;chr&gt;         &lt;int&gt;
+## 1 No                   Other             8
+## 2 No                   School            3
+## 3 No                   Workplace         6
+## 4 Yes                  Airport           1
+## 5 Yes                  Military          2
+## 6 Yes                  Other            24
+## 7 Yes                  Religious         4
+## 8 Yes                  School           10
+## 9 Yes                  Workplace        21</code></pre>
+<pre class="r"><code>#Create a pie chart to show differences in location type by the two type of shooters
+
+shooters_mental_location %&gt;% 
+  
+  ggplot()+
+  
+  aes(x=&quot;&quot;,
+      y = count,
+      fill = location_type)+
+  
+  geom_bar(stat=&quot;identity&quot;, width=1)+
+  coord_polar(&quot;y&quot;, start=0)+
+  
+  facet_wrap(~prior_mental_illness)+
+  
+  scale_fill_brewer(palette=&quot;Set2&quot;)+
+  
+  theme_minimal()+
+  
+  #add titles
+  labs(title = &quot;How do shooters with and without mental illness differ in choices of locations&quot;,
+       subtitle = &quot;Location type associated with two type of shooters&quot;,
+       x = NULL)+
+  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<ul>
+<li>Assess the relationship between mental illness and total victims, mental illness and location type, and the intersection of all three variables.</li>
+</ul>
+<p>Mental illness and total victims: shooters with mental illness were causing more victims than those without.</p>
+<p>Mental illness and location type: shooters with mental illness chose locations more randomly, while those without mainly focused on others, schools and workplaces.</p>
+<p>Intersection: shooters with mental illness shooting at school and workplaces were causing most of the victims.</p>
+<p>See bar plots below.</p>
+<pre class="r"><code>#Create a table that shows all three variables above
+mental_victims_location &lt;- 
+  mass_shootings %&gt;% 
+  #filter out NAs
+  filter(!is.na(prior_mental_illness)) %&gt;% 
+  select(prior_mental_illness,
+         total_victims,
+         location_type)
+
+print(mental_victims_location)</code></pre>
+<pre><code>## # A tibble: 79 × 3
+##    prior_mental_illness total_victims location_type
+##    &lt;chr&gt;                        &lt;dbl&gt; &lt;chr&gt;        
+##  1 Yes                              9 Workplace    
+##  2 Yes                             15 Workplace    
+##  3 Yes                             10 Workplace    
+##  4 Yes                             32 Other        
+##  5 Yes                             11 Workplace    
+##  6 Yes                              5 Workplace    
+##  7 Yes                             34 Other        
+##  8 Yes                              5 Workplace    
+##  9 Yes                              8 Other        
+## 10 Yes                              3 Workplace    
+## # ℹ 69 more rows</code></pre>
+<pre class="r"><code>#Bar plots
+mental_victims_location %&gt;% 
+  
+  ggplot()+
+  
+  aes(x = location_type,
+      y = total_victims,
+      fill = prior_mental_illness)+
+  
+  geom_bar(stat = &quot;identity&quot;)+
+  
+  scale_fill_brewer(palette=&quot;Blues&quot;,
+                    name  =&quot;Prior Mental Illness&quot;)+
+  
+  theme_minimal()+
+  
+  #add titles
+  labs(title = &quot;How do shooters with and without mental illness differ in number of victims&quot;,
+       subtitle = &quot;number of victims associated with two type of shooters&quot;,
+       x = &quot;Type of Location&quot;,
+       y = &quot;Number of Victims&quot;)+
+  
+  NULL</code></pre>
+<p><img src="/blogs/shooting_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+</div>
+</div>
+</div>
