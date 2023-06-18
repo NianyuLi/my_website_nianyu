@@ -1,7 +1,7 @@
 ---
 date: "June 2023"
 description: Introduction
-image: intro.jpg 
+image: intro.JPG 
 
 keywords: "About me"
 slug: intro
