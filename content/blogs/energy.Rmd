@@ -1,5 +1,6 @@
 ---
-title: "energy"
+description: "Energy Source in China"
+title: "Energy Source in China"
 author: "Nianyu Li"
 date: "June 2023"
 output:
@@ -14,6 +15,9 @@ output:
     toc: yes
     toc_float: yes
     code_folding: show
+image: energy.jpeg
+keywords: "data visuals"
+slug: energy
 ---
 
 ------------------------------------------------------------------------

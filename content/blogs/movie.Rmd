@@ -1,4 +1,5 @@
 ---
+description: 'Female Representation in Movies'
 title: 'Female Representation in Movies'
 author: "Nianyu Li"
 date: "June 2023"
@@ -14,6 +15,9 @@ output:
     toc: yes
     toc_float: yes
     code_folding: show
+image: movie.jpg
+keywords: "data modelling"
+slug: movie
 ---
 
 ```{r}

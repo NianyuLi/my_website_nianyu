@@ -1,7 +1,8 @@
 ---
-title: "Archvale Data Analysis"
+description: "Patient Data Analysis"
+title: "Patient Data Analysis"
 author: "Nianyu Li"
-date: "`r Sys.Date()`"
+date: "June 2023"
 output:
   html_document:
     theme: flatly
@@ -17,6 +18,9 @@ output:
 editor_options: 
   markdown: 
     wrap: 72
+image: archvale.jpg
+keywords: "data visuals and stategic planning"
+slug: archvale
 ---
 
 ------------------------------------------------------------------------

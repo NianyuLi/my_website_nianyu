@@ -1,0 +1,18 @@
+---
+date: "June 2023"
+description: Introduction
+image: intro.jpg 
+
+keywords: "About me"
+slug: intro
+title: Introduction
+---
+
+
+I am Nianyu(Sophia), current Master in Management Student at London Busines School.
+
+About me:
+
+-   Speaks English, Chinese and Spanish. Works with SQL, R and Python.
+-   Fast learning capabilities gained through experiences in Consulting, Tech and Investment Advisory.
+-   Professional Interests in leveraging Data for Finance, Operation, Digitalization, and ESG.

@@ -28,7 +28,7 @@ disqusShortname = "nianyuli"
   favicon    = "favicon.ico"
 
   # Just a custom image variable, please define it in .md files for content.
-  image = "spices.jpg"
+  image = ""
 
   # 404 error customization
   [params.error404]
@@ -52,12 +52,12 @@ disqusShortname = "nianyuli"
       url = "blogs"
 
     [[params.navigation.links]]
-      name = "Generic Blog"
-      url = "blogs/ipsum"
+      name = "About me"
+      url = "blogs/intro"
 
-    [[params.navigation.links]]
-      name = "Elements"
-      url = "elements.html"
+    #[[params.navigation.links]]
+      #name = "Elements"
+      #url = "elements.html"
 
     # Add custom links here by uncommenting code below. To remove links just delete
     # the [[params.navigation.links]] map associated with that link. Copy and paste
@@ -84,6 +84,7 @@ disqusShortname = "nianyuli"
     title = "Hi, my name is Nianyu"
     subtitle = "Data analytics, visualizations | Strategic planning | Digital Advertising"
     buttonText = "Get Started"
+    #Banner = "banner.JPG"
 
 
   # Tiles Section
@@ -104,7 +105,7 @@ disqusShortname = "nianyuli"
       url = "blogs/asos.pdf"
 
     [[params.tiles.showcase]]
-      title = "Archvale Patient Analysis"
+      title = "Patient Analysis"
       subtitle = "Identification of Inappropriate GP usage based on 1657 patients"
       image = "archvale.jpg"
       url = "blogs/archvale"
