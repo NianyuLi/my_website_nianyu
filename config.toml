@@ -81,7 +81,7 @@ disqusShortname = "https-nianyuliprofile-netlify-app"
   [params.banner]
     # To change the background image on the homepage banner, replace 'banner.jpg' in
     # the 'static/img' folder.
-    title = "Hi, my name is Nianyu"
+    title = "Hi, I am Nianyu, a business student passionate about tech."
     subtitle = "Data analytics, visualizations | Strategic planning | Digital Advertising"
     buttonText = "Get Started"
 
