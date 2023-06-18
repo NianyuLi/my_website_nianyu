@@ -110,8 +110,8 @@ disqusShortname = "nianyuli"
       url = "blogs/archvale"
 
     [[params.tiles.showcase]]
-      title = "Energy Source in China from 1990 to 2022"
-      subtitle = "Stacked Area Chart based on OWID data"
+      title = "Energy Source in China"
+      subtitle = "Stacked Area Chart based on OWID data from 1990 to 2022"
       image = "energy.jpeg"
       url = "blogs/energy"
 
